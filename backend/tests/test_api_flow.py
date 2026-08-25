@@ -103,6 +103,27 @@ def test_api_flow_from_subscription_to_bilingual_stats(tmp_path: Path) -> None:
                 assert transcript.status_code == 200
                 assert transcript.json()["segments"][0]["text"] == "Good morning"
 
+                uploaded = await client.post(
+                    f"/episodes/{episode_id}/transcript/upload",
+                    json={
+                        "language": "en",
+                        "source": "android-tiny.en",
+                        "segments": [
+                            {
+                                "index": 0,
+                                "start_ms": 250,
+                                "end_ms": 2750,
+                                "text": "Good morning",
+                                "speaker": None,
+                                "paragraph_index": 0,
+                            }
+                        ],
+                    },
+                )
+                assert uploaded.status_code == 200
+                assert uploaded.json()["source"] == "android-tiny.en"
+                assert uploaded.json()["segments"][0]["start_ms"] == 250
+
                 bilingual = await client.post(
                     f"/episodes/{episode_id}/transcript/translate",
                     json={"target_language": "zh-Hans"},

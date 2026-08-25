@@ -57,7 +57,6 @@ class PlaybackController extends ChangeNotifier {
     notifyListeners();
     try {
       await _engine.setLooping(false);
-      await _engine.setClip();
       await _engine.load(value.audioUrl);
     } catch (error) {
       errorMessage = '无法加载音频：$error';

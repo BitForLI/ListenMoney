@@ -50,6 +50,9 @@ cd /Users/x/Desktop/listen
 ```
 
 For the Android emulator, use `http://10.0.2.2:8000` as the API base URL.
+For a physical Android phone on the same Wi-Fi network as the Mac, use the
+Mac's LAN address, for example `http://192.168.1.20:8000`. The backend must be
+started with `--host 0.0.0.0` for the phone to reach it.
 
 Run local Flutter checks with:
 
@@ -76,6 +79,21 @@ python -m pip install -e '.[dev,transcription]'
 The first transcription downloads the Whisper `small` model. Set
 `LISTEN_WHISPER_MODEL` before starting the backend to choose another compatible
 model.
+
+### Free Android on-device transcription
+
+On Android, the text page can generate English timed captions directly on the
+phone without installing `faster-whisper` on the Mac. Choose **Fast (Tiny
+English)** or **Accurate (Base English)** and tap **Generate captions on this
+phone**. The selected sherpa-onnx Whisper model is downloaded on first use,
+then reused offline. Episode audio is decoded into 30-second chunks; completed
+chunks appear immediately and the transcript is kept in the app's private
+storage.
+
+When the local FastAPI backend is reachable, the phone also syncs the generated
+timeline to it so the existing Chinese translation flow can use it. If the Mac
+is unavailable, English captions remain usable from the phone cache and can be
+synced later by tapping the translate action after reconnecting.
 
 ## Local Chinese translation
 

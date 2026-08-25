@@ -24,6 +24,8 @@ abstract class PodcastRepository {
     String? language,
   });
 
+  Future<TranscriptDocument> saveTranscript(TranscriptDocument document);
+
   Future<TranscriptDocument> translateTranscript(
     int episodeId, {
     String targetLanguage,
@@ -161,6 +163,31 @@ class HttpPodcastRepository implements PodcastRepository {
       'POST',
       '/episodes/$episodeId/transcript/transcribe',
       body: {'language': language},
+    );
+    return TranscriptDocument.fromJson(data as Map<String, dynamic>);
+  }
+
+  @override
+  Future<TranscriptDocument> saveTranscript(TranscriptDocument document) async {
+    final data = await _request(
+      'POST',
+      '/episodes/${document.episodeId}/transcript/upload',
+      body: {
+        'language': document.language,
+        'source': document.source,
+        'segments': document.segments
+            .map(
+              (segment) => {
+                'index': segment.index,
+                'start_ms': segment.startMs,
+                'end_ms': segment.endMs,
+                'text': segment.text,
+                'speaker': segment.speaker,
+                'paragraph_index': segment.paragraphIndex,
+              },
+            )
+            .toList(),
+      },
     );
     return TranscriptDocument.fromJson(data as Map<String, dynamic>);
   }

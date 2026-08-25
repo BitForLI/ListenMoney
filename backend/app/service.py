@@ -7,7 +7,13 @@ import httpx
 
 from app.database import Database
 from app.feeds import FeedFetchResult, FeedGateway, validate_feed_url
-from app.schemas import Podcast, PodcastSearchResult, RefreshSummary, TranscriptDocument
+from app.schemas import (
+    Podcast,
+    PodcastSearchResult,
+    RefreshSummary,
+    TranscriptDocument,
+    TranscriptUpload,
+)
 from app.transcriber import LocalWhisperTranscriber
 from app.transcripts import TranscriptCue, TranscriptError, TranscriptGateway
 from app.translator import OpenAICompatibleTranslator, TranslationError
@@ -190,6 +196,44 @@ class PodcastService:
             episode_id,
             language=detected_language,
             source="local-whisper",
+            source_url=None,
+            cues=cues,
+        )
+
+    def save_uploaded_transcript(
+        self,
+        episode_id: int,
+        payload: TranscriptUpload,
+    ) -> TranscriptDocument:
+        if not self.database.get_episode(episode_id):
+            raise TranscriptError("单集不存在")
+        ordered = sorted(payload.segments, key=lambda segment: segment.index)
+        if [segment.index for segment in ordered] != list(range(len(ordered))):
+            raise TranscriptError("字幕序号必须从 0 开始并连续")
+        previous_start = -1
+        cues: list[TranscriptCue] = []
+        for segment in ordered:
+            text = " ".join(segment.text.split())
+            if not text:
+                raise TranscriptError("字幕文本不能为空")
+            if segment.end_ms <= segment.start_ms:
+                raise TranscriptError("字幕结束时间必须晚于开始时间")
+            if segment.start_ms < previous_start:
+                raise TranscriptError("字幕时间轴顺序无效")
+            previous_start = segment.start_ms
+            cues.append(
+                TranscriptCue(
+                    start_ms=segment.start_ms,
+                    end_ms=segment.end_ms,
+                    text=text,
+                    speaker=segment.speaker,
+                    paragraph_index=segment.paragraph_index,
+                )
+            )
+        return self.database.save_transcript(
+            episode_id,
+            language=payload.language,
+            source=payload.source,
             source_url=None,
             cues=cues,
         )

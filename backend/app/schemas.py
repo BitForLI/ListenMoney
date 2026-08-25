@@ -68,6 +68,21 @@ class TranscriptionRequest(BaseModel):
     language: str | None = Field(default=None, min_length=2, max_length=12)
 
 
+class TranscriptUploadSegment(BaseModel):
+    index: int = Field(ge=0)
+    start_ms: int = Field(ge=0)
+    end_ms: int = Field(gt=0)
+    text: str = Field(min_length=1, max_length=4000)
+    speaker: str | None = Field(default=None, max_length=120)
+    paragraph_index: int = Field(ge=0)
+
+
+class TranscriptUpload(BaseModel):
+    language: str = Field(min_length=2, max_length=12)
+    source: str = Field(min_length=2, max_length=80)
+    segments: list[TranscriptUploadSegment] = Field(min_length=1, max_length=20000)
+
+
 class TranslationRequest(BaseModel):
     target_language: str = Field(default="zh-Hans", min_length=2, max_length=12)
 

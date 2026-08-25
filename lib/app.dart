@@ -8,6 +8,7 @@ import 'features/library/presentation/library_screen.dart';
 import 'features/player/application/playback_controller.dart';
 import 'features/player/application/playback_engine.dart';
 import 'features/player/application/transcript_controller.dart';
+import 'features/player/data/mobile_on_device_transcriber.dart';
 import 'features/player/presentation/player_screen.dart';
 import 'features/progress/presentation/progress_screen.dart';
 import 'features/progress/application/listening_controller.dart';
@@ -65,6 +66,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _transcriptController = TranscriptController(
       _podcastRepository,
       _playbackController,
+      onDeviceTranscriber: MobileOnDeviceTranscriber(),
     );
     _listeningController = ListeningController(
       _podcastRepository,

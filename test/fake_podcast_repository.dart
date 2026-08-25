@@ -8,6 +8,7 @@ class FakePodcastRepository implements PodcastRepository {
 
   final List<Podcast> _podcasts;
   final TranscriptDocument? transcript;
+  TranscriptDocument? savedTranscript;
   int addCallCount = 0;
   int recordedSeconds = 0;
 
@@ -68,6 +69,12 @@ class FakePodcastRepository implements PodcastRepository {
         ),
       ],
     );
+  }
+
+  @override
+  Future<TranscriptDocument> saveTranscript(TranscriptDocument document) async {
+    savedTranscript = document;
+    return document;
   }
 
   @override

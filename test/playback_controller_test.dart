@@ -13,7 +13,7 @@ void main() {
     audioUrl: 'https://example.com/episode.mp3',
   );
 
-  test('loads an episode and clears the previous clip', () async {
+  test('loads the first episode before performing clip operations', () async {
     final engine = FakePlaybackEngine()
       ..clipStart = const Duration(seconds: 10)
       ..clipEnd = const Duration(seconds: 20)
@@ -23,6 +23,7 @@ void main() {
     await controller.loadEpisode(episode, fromPodcast: 'Test Podcast');
 
     expect(engine.loadedUrl, episode.audioUrl);
+    expect(engine.hasAudioSource, isTrue);
     expect(engine.clipStart, isNull);
     expect(engine.clipEnd, isNull);
     expect(engine.looping, isFalse);

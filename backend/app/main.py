@@ -21,6 +21,7 @@ from app.schemas import (
     RefreshSummary,
     SubscriptionCreate,
     TranscriptDocument,
+    TranscriptUpload,
     TranscriptionRequest,
     TranslationRequest,
 )
@@ -199,6 +200,23 @@ def create_app(
                 episode_id,
                 language=payload.language,
             )
+        except TranscriptError as error:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                detail=str(error),
+            ) from error
+
+    @application.post(
+        "/episodes/{episode_id}/transcript/upload",
+        response_model=TranscriptDocument,
+    )
+    async def upload_transcript(
+        episode_id: int,
+        payload: TranscriptUpload,
+        request: Request,
+    ) -> TranscriptDocument:
+        try:
+            return service(request).save_uploaded_transcript(episode_id, payload)
         except TranscriptError as error:
             raise HTTPException(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
