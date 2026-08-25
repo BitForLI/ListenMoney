@@ -1,0 +1,99 @@
+# Listen
+
+Listen is a focused bilingual podcast player. The MVP supports up to ten
+podcast subscriptions, sentence/paragraph/episode repetition, bilingual
+transcripts, and daily listening streaks.
+
+## Repository layout
+
+- `lib/`: Flutter application for iOS and Android.
+- `backend/`: FastAPI service for feed synchronization and transcript jobs.
+- `test/`: Flutter widget tests.
+- `backend/tests/`: backend tests.
+
+## Current milestone
+
+RSS subscriptions, playback, and timed transcripts are implemented end to end.
+The app supports Apple Podcasts search, direct RSS entry, a ten-subscription
+limit, duplicate-safe refresh, streaming playback, speed and seek controls,
+episode/sentence/paragraph repetition, Podcasting 2.0 transcript imports, and
+an optional local Whisper fallback, publisher-provided Chinese tracks, and
+cached machine translation through an OpenAI-compatible local service. Actual
+ready-state playback time is aggregated by local calendar day, with a seven-day
+view, total duration, and current listening streak.
+
+## Local checks
+
+Install and test the backend once:
+
+```bash
+cd /Users/x/Desktop/listen/backend
+source .venv/bin/activate
+python -m pip install -e '.[dev]'
+python -m pytest
+```
+
+Start the backend (leave this terminal running):
+
+```bash
+cd /Users/x/Desktop/listen/backend
+source .venv/bin/activate
+python -m uvicorn app.main:app --reload
+```
+
+Then start the iOS app from a second terminal:
+
+```bash
+cd /Users/x/Desktop/listen
+/Users/x/develop/flutter/bin/flutter run \
+  --dart-define=LISTEN_API_BASE_URL=http://127.0.0.1:8000
+```
+
+For the Android emulator, use `http://10.0.2.2:8000` as the API base URL.
+
+Run local Flutter checks with:
+
+```bash
+/Users/x/develop/flutter/bin/flutter analyze
+/Users/x/develop/flutter/bin/flutter test
+```
+
+The backend is intended for local MVP use. Do not expose it publicly without
+authentication and network-request restrictions.
+
+## Optional local transcription
+
+Episodes that publish Podcasting 2.0 VTT, SRT, or JSON transcripts work without
+extra dependencies. To generate a transcript for an episode that does not
+publish one, install the local transcription extra:
+
+```bash
+cd /Users/x/Desktop/listen/backend
+source .venv/bin/activate
+python -m pip install -e '.[dev,transcription]'
+```
+
+The first transcription downloads the Whisper `small` model. Set
+`LISTEN_WHISPER_MODEL` before starting the backend to choose another compatible
+model.
+
+## Local Chinese translation
+
+If a publisher supplies Chinese timed captions, Listen uses them directly.
+Otherwise the backend defaults to Ollama's OpenAI-compatible endpoint and the
+`qwen3:4b` model:
+
+```bash
+brew install ollama
+brew services start ollama
+ollama pull qwen3:4b
+```
+
+To use another OpenAI-compatible service, set these variables before starting
+the backend:
+
+```bash
+export LISTEN_TRANSLATION_BASE_URL=http://127.0.0.1:11434/v1
+export LISTEN_TRANSLATION_MODEL=qwen3:4b
+export LISTEN_TRANSLATION_API_KEY=ollama
+```

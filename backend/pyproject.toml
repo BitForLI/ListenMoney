@@ -1,0 +1,30 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "listen-backend"
+version = "0.1.0"
+description = "RSS synchronization and transcript processing for Listen."
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.116,<1",
+  "feedparser>=6.0,<7",
+  "httpx>=0.28,<1",
+  "uvicorn[standard]>=0.35,<1",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8,<10",
+]
+transcription = [
+  "faster-whisper>=1.2.1,<2",
+]
+
+[tool.hatch.build.targets.wheel]
+packages = ["app"]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
