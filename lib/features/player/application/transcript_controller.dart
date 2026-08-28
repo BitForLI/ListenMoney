@@ -182,7 +182,7 @@ class TranscriptController extends ChangeNotifier {
     transcriptionProgress = 0;
     transcriptionStatus = supportsOnDeviceTranscription
         ? '准备手机离线转写…'
-        : '准备 Mac 本地转写…';
+        : '当前设备不支持离线转写';
     notifyListeners();
     try {
       final episode = _playback.episode;
@@ -206,7 +206,7 @@ class TranscriptController extends ChangeNotifier {
         if (_episodeId != episodeId) return;
         _documentNeedsSync = true;
         await _showDocument(generated);
-        transcriptionStatus = '字幕已生成，正在同步到本地后端…';
+        transcriptionStatus = '字幕已生成，正在保存到手机…';
         notifyListeners();
         try {
           final saved = await _repository.saveTranscript(generated);
@@ -215,8 +215,8 @@ class TranscriptController extends ChangeNotifier {
           await _showDocument(saved);
           transcriptionStatus = '手机离线字幕已完成';
         } catch (error) {
-          errorMessage = '字幕已保存在手机，但未同步到后端：$error';
-          transcriptionStatus = '手机离线字幕已完成';
+          errorMessage = '字幕缓存已生成，但保存失败：$error';
+          transcriptionStatus = '手机离线字幕缓存已完成';
         }
       } else {
         final generated = await _repository.transcribeEpisode(

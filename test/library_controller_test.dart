@@ -6,7 +6,7 @@ import 'package:listen/features/library/domain/podcast.dart';
 import 'fake_podcast_repository.dart';
 
 void main() {
-  test('blocks an eleventh subscription before calling the backend', () async {
+  test('blocks an eleventh subscription before writing local data', () async {
     final podcasts = List.generate(
       10,
       (index) => Podcast(

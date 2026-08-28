@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'core/theme/app_theme.dart';
 import 'core/widgets/glass_surface.dart';
+import 'features/library/data/local_podcast_repository.dart';
 import 'features/library/data/podcast_repository.dart';
 import 'features/library/domain/podcast.dart';
 import 'features/library/presentation/library_screen.dart';
@@ -13,6 +14,7 @@ import 'features/player/application/automatic_transcription_runner.dart';
 import 'features/player/application/on_device_transcriber.dart';
 import 'features/player/application/transcript_controller.dart';
 import 'features/player/data/mobile_on_device_transcriber.dart';
+import 'features/player/data/mobile_transcript_translator.dart';
 import 'features/player/presentation/player_screen.dart';
 import 'features/progress/presentation/progress_screen.dart';
 import 'features/progress/application/listening_controller.dart';
@@ -75,7 +77,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     _playbackController =
         widget.playbackController ??
         PlaybackController(JustAudioPlaybackEngine());
-    _podcastRepository = widget.podcastRepository ?? HttpPodcastRepository();
+    _podcastRepository =
+        widget.podcastRepository ??
+        LocalPodcastRepository(translator: MobileTranscriptTranslator());
     final onDeviceTranscriber = QueuedOnDeviceTranscriber(
       MobileOnDeviceTranscriber(),
     );

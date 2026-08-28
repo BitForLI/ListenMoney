@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../application/library_controller.dart';
+import '../data/local_podcast_repository.dart';
 import '../data/podcast_repository.dart';
 import '../domain/podcast.dart';
 
@@ -47,7 +48,7 @@ class _LibraryScreenState extends State<LibraryScreen> {
   void initState() {
     super.initState();
     _controller = LibraryController(
-      widget.repository ?? HttpPodcastRepository(),
+      widget.repository ?? LocalPodcastRepository(),
     )..addListener(_onChanged);
     unawaited(_load());
   }

@@ -52,7 +52,7 @@ class AutomaticTranscriptionRunner {
         try {
           await _repository.saveTranscript(document);
         } catch (_) {
-          // The phone cache remains usable when the local backend disconnects.
+          // The transcriber cache remains usable if app data persistence fails.
         }
       } catch (_) {
         // Continue with the remaining recent episodes after one failure.

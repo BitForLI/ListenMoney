@@ -27,6 +27,18 @@ class Podcast {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'title': title,
+    'feed_url': feedUrl,
+    'episode_count': episodeCount,
+    'author': author,
+    'description': description,
+    'artwork_url': artworkUrl,
+    'website_url': websiteUrl,
+    'last_checked_at': lastCheckedAt?.toIso8601String(),
+  };
+
   final int id;
   final String title;
   final String feedUrl;
@@ -51,6 +63,7 @@ class Episode {
     this.websiteUrl,
     this.hasTranscriptSource = false,
     this.transcriptReady = false,
+    this.transcriptSources = const [],
   });
 
   factory Episode.fromJson(Map<String, dynamic> json) {
@@ -68,8 +81,32 @@ class Episode {
       websiteUrl: json['website_url'] as String?,
       hasTranscriptSource: json['has_transcript_source'] as bool? ?? false,
       transcriptReady: json['transcript_ready'] as bool? ?? false,
+      transcriptSources:
+          (json['transcript_sources'] as List<dynamic>? ?? const [])
+              .map(
+                (item) =>
+                    TranscriptSource.fromJson(item as Map<String, dynamic>),
+              )
+              .toList(),
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'podcast_id': podcastId,
+    'guid': guid,
+    'title': title,
+    'audio_url': audioUrl,
+    'description': description,
+    'published_at': publishedAt?.toIso8601String(),
+    'duration_seconds': durationSeconds,
+    'website_url': websiteUrl,
+    'has_transcript_source': hasTranscriptSource,
+    'transcript_ready': transcriptReady,
+    'transcript_sources': transcriptSources
+        .map((source) => source.toJson())
+        .toList(),
+  };
 
   final int id;
   final int podcastId;
@@ -82,6 +119,33 @@ class Episode {
   final String? websiteUrl;
   final bool hasTranscriptSource;
   final bool transcriptReady;
+  final List<TranscriptSource> transcriptSources;
+}
+
+class TranscriptSource {
+  const TranscriptSource({
+    required this.url,
+    required this.mimeType,
+    this.language,
+  });
+
+  factory TranscriptSource.fromJson(Map<String, dynamic> json) {
+    return TranscriptSource(
+      url: json['url'] as String,
+      mimeType: json['mime_type'] as String,
+      language: json['language'] as String?,
+    );
+  }
+
+  final String url;
+  final String mimeType;
+  final String? language;
+
+  Map<String, dynamic> toJson() => {
+    'url': url,
+    'mime_type': mimeType,
+    'language': language,
+  };
 }
 
 class PodcastSearchResult {
@@ -146,6 +210,16 @@ class TranscriptSegment {
     );
   }
 
+  Map<String, dynamic> toJson() => {
+    'index': index,
+    'start_ms': startMs,
+    'end_ms': endMs,
+    'text': text,
+    'speaker': speaker,
+    'paragraph_index': paragraphIndex,
+    'translation': translation,
+  };
+
   final int index;
   final int startMs;
   final int endMs;
@@ -179,6 +253,15 @@ class TranscriptDocument {
       translationSource: json['translation_source'] as String?,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'episode_id': episodeId,
+    'language': language,
+    'source': source,
+    'segments': segments.map((segment) => segment.toJson()).toList(),
+    'target_language': targetLanguage,
+    'translation_source': translationSource,
+  };
 
   final int episodeId;
   final String language;

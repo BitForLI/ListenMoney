@@ -20,13 +20,28 @@ class LibraryController extends ChangeNotifier {
     isLoading = true;
     errorMessage = null;
     notifyListeners();
+    var shouldRefresh = false;
     try {
       podcasts = await _repository.listSubscriptions();
+      final staleBefore = DateTime.now().subtract(const Duration(minutes: 15));
+      shouldRefresh = podcasts.any(
+        (podcast) =>
+            podcast.lastCheckedAt == null ||
+            podcast.lastCheckedAt!.isBefore(staleBefore),
+      );
     } catch (error) {
       errorMessage = error.toString();
     } finally {
       isLoading = false;
       notifyListeners();
+    }
+    if (shouldRefresh) {
+      try {
+        await refresh();
+      } catch (error) {
+        errorMessage = error.toString();
+        notifyListeners();
+      }
     }
   }
 
