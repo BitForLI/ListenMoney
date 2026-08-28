@@ -65,6 +65,9 @@ void main() {
 
       await transcript.selectNext();
       expect(transcript.activeSegment?.index, 1);
+      expect(engine.position, const Duration(milliseconds: 2500));
+      expect(engine.clipStart, const Duration(milliseconds: 2500));
+      expect(engine.clipEnd, const Duration(milliseconds: 4000));
 
       await playback.setRepeatMode(PlaybackRepeatMode.paragraph);
       expect(engine.clipStart, const Duration(milliseconds: 1000));
@@ -80,6 +83,58 @@ void main() {
       expect(transcript.showTranslation, isFalse);
     },
   );
+
+  test('stale position event cannot undo next sentence selection', () async {
+    const document = TranscriptDocument(
+      episodeId: 1,
+      language: 'en',
+      source: 'rss',
+      segments: [
+        TranscriptSegment(
+          index: 0,
+          startMs: 1000,
+          endMs: 2500,
+          text: 'First sentence.',
+          paragraphIndex: 0,
+        ),
+        TranscriptSegment(
+          index: 1,
+          startMs: 2500,
+          endMs: 4000,
+          text: 'Second sentence.',
+          paragraphIndex: 0,
+        ),
+      ],
+    );
+    final engine = _DeferredSeekPlaybackEngine();
+    final playback = PlaybackController(engine);
+    await playback.loadEpisode(
+      const Episode(
+        id: 1,
+        podcastId: 1,
+        guid: 'episode-1',
+        title: 'Episode One',
+        audioUrl: 'https://example.com/episode.mp3',
+      ),
+    );
+    final transcript = TranscriptController(
+      FakePodcastRepository(transcript: document),
+      playback,
+    );
+    await transcript.load(1);
+    await playback.setRepeatMode(PlaybackRepeatMode.sentence);
+
+    engine.deferSeek = true;
+    await transcript.selectNext();
+    engine.emitPosition(const Duration(milliseconds: 1000));
+
+    expect(transcript.activeSegment?.index, 1);
+    expect(engine.clipStart, const Duration(milliseconds: 2500));
+    expect(engine.clipEnd, const Duration(milliseconds: 4000));
+
+    engine.completeSeek();
+    expect(transcript.activeSegment?.index, 1);
+  });
 
   test('Android local transcript is shown progressively and synced', () async {
     final engine = FakePlaybackEngine();
@@ -101,20 +156,42 @@ void main() {
     );
     await transcript.load(episode.id);
 
-    transcript.setTranscriptionModel(DeviceTranscriptionModel.accurate);
     await transcript.transcribe();
 
-    expect(transcriber.selectedModel, DeviceTranscriptionModel.accurate);
     expect(transcript.document?.segments.single.text, 'Local sentence.');
-    expect(repository.savedTranscript?.source, 'android-base.en');
+    expect(
+      repository.savedTranscript?.source,
+      'android-v5-parakeet-tdt-0.6b-v2-int8',
+    );
     expect(transcript.transcriptionProgress, 1);
     expect(transcript.errorMessage, isNull);
   });
 }
 
-class _FakeOnDeviceTranscriber implements OnDeviceTranscriber {
-  DeviceTranscriptionModel? selectedModel;
+class _DeferredSeekPlaybackEngine extends FakePlaybackEngine {
+  bool deferSeek = false;
+  Duration? _requestedPosition;
 
+  @override
+  Future<void> seek(Duration value) async {
+    if (!deferSeek) return super.seek(value);
+    _requestedPosition = value;
+  }
+
+  void emitPosition(Duration value) {
+    position = value;
+    notifyListeners();
+  }
+
+  void completeSeek() {
+    final value = _requestedPosition;
+    if (value == null) return;
+    _requestedPosition = null;
+    emitPosition(value);
+  }
+}
+
+class _FakeOnDeviceTranscriber implements OnDeviceTranscriber {
   @override
   bool get isSupported => true;
 
@@ -124,15 +201,13 @@ class _FakeOnDeviceTranscriber implements OnDeviceTranscriber {
   @override
   Future<TranscriptDocument> transcribe(
     Episode episode, {
-    required DeviceTranscriptionModel model,
     void Function(DeviceTranscriptionProgress progress)? onProgress,
     void Function(TranscriptDocument document)? onPartial,
   }) async {
-    selectedModel = model;
     const document = TranscriptDocument(
       episodeId: 7,
       language: 'en',
-      source: 'android-base.en',
+      source: 'android-v5-parakeet-tdt-0.6b-v2-int8',
       segments: [
         TranscriptSegment(
           index: 0,

@@ -7,6 +7,7 @@ RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
      xmlns:podcast="https://podcastindex.org/namespace/1.0">
   <channel>
     <title>Test Podcast</title>
+    <language>en</language>
     <link>https://example.com/podcast</link>
     <description>A podcast for tests</description>
     <itunes:author>Test Author</itunes:author>
@@ -17,8 +18,9 @@ RSS = b"""<?xml version="1.0" encoding="UTF-8"?>
       <description>Hello</description>
       <pubDate>Mon, 24 Aug 2026 10:00:00 GMT</pubDate>
       <itunes:duration>01:02:03</itunes:duration>
+      <link>https://example.com/episodes/one</link>
       <enclosure url="https://example.com/episode-1.mp3" type="audio/mpeg" />
-      <podcast:transcript url="https://example.com/episode-1.vtt" type="text/vtt" language="en" />
+      <podcast:transcript url="https://example.com/episode-1.vtt" type="text/vtt" />
       <podcast:transcript url="https://example.com/episode-1.json" type="application/json" language="en" />
     </item>
   </channel>
@@ -35,6 +37,8 @@ def test_parse_feed_and_episode() -> None:
     assert len(podcast.episodes) == 1
     assert podcast.episodes[0].audio_url == "https://example.com/episode-1.mp3"
     assert podcast.episodes[0].duration_seconds == 3723
+    assert podcast.episodes[0].website_url == "https://example.com/episodes/one"
     assert podcast.episodes[0].published_at is not None
     assert len(podcast.episodes[0].transcripts) == 2
     assert podcast.episodes[0].transcripts[0].mime_type == "text/vtt"
+    assert podcast.episodes[0].transcripts[0].language == "en"

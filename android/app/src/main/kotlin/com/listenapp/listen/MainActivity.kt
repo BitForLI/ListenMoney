@@ -208,17 +208,39 @@ private class WavChunkWriter(
     private var file: RandomAccessFile? = null
     private var currentPath: String? = null
     private var samplesInChunk = 0
-    private var resampleAccumulator = 0L
+    private var sourceSampleIndex = 0L
+    private var nextOutputPosition = 0.0
+    private var previousSample = 0f
+    private var activeSourceSampleRate = 0
     private var finished = false
 
     fun writeResampled(samples: FloatArray, sourceSampleRate: Int) {
         require(sourceSampleRate > 0) { "音频采样率无效" }
-        for (sample in samples) {
-            resampleAccumulator += TARGET_SAMPLE_RATE
-            while (resampleAccumulator >= sourceSampleRate) {
-                writeSample(sample)
-                resampleAccumulator -= sourceSampleRate
+        if (activeSourceSampleRate == 0) {
+            activeSourceSampleRate = sourceSampleRate
+        } else {
+            require(activeSourceSampleRate == sourceSampleRate) {
+                "解码过程中音频采样率发生变化"
             }
+        }
+        val sourceSamplesPerOutput = sourceSampleRate.toDouble() / TARGET_SAMPLE_RATE
+        for (sample in samples) {
+            if (sourceSampleIndex == 0L) {
+                writeSample(sample)
+                nextOutputPosition = sourceSamplesPerOutput
+            } else {
+                while (nextOutputPosition <= sourceSampleIndex.toDouble()) {
+                    val fraction = (
+                        nextOutputPosition - (sourceSampleIndex - 1).toDouble()
+                    ).toFloat().coerceIn(0f, 1f)
+                    val interpolated = previousSample +
+                        (sample - previousSample) * fraction
+                    writeSample(interpolated)
+                    nextOutputPosition += sourceSamplesPerOutput
+                }
+            }
+            previousSample = sample
+            sourceSampleIndex += 1
         }
     }
 

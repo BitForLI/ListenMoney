@@ -1,14 +1,40 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../application/library_controller.dart';
 import '../data/podcast_repository.dart';
 import '../domain/podcast.dart';
 
+const _recommendedSubscriptions = [
+  (
+    title: 'Practical AI',
+    subtitle: '实用 AI · 工程与行业动态',
+    feedUrl: 'https://feeds.transistor.fm/practical-ai-machine-learning-data-science-llm',
+  ),
+  (
+    title: 'The TED AI Show',
+    subtitle: 'AI 与社会 · 深度访谈',
+    feedUrl: 'https://feeds.acast.com/public/shows/6758564a102e6d4448d19589',
+  ),
+  (
+    title: 'Latent Space',
+    subtitle: 'AI 工程 · 模型与开发者生态',
+    feedUrl: 'https://api.substack.com/feed/podcast/1084089.rss',
+  ),
+];
+
 class LibraryScreen extends StatefulWidget {
-  const LibraryScreen({super.key, this.repository, this.onPlayEpisode});
+  const LibraryScreen({
+    super.key,
+    this.repository,
+    this.onPlayEpisode,
+    this.onPodcastsChanged,
+  });
 
   final PodcastRepository? repository;
   final void Function(Podcast podcast, Episode episode)? onPlayEpisode;
+  final ValueChanged<List<Podcast>>? onPodcastsChanged;
 
   @override
   State<LibraryScreen> createState() => _LibraryScreenState();
@@ -20,10 +46,21 @@ class _LibraryScreenState extends State<LibraryScreen> {
   @override
   void initState() {
     super.initState();
-    _controller =
-        LibraryController(widget.repository ?? HttpPodcastRepository())
-          ..addListener(_onChanged)
-          ..load();
+    _controller = LibraryController(
+      widget.repository ?? HttpPodcastRepository(),
+    )..addListener(_onChanged);
+    unawaited(_load());
+  }
+
+  Future<void> _load() async {
+    await _controller.load();
+    _notifyPodcastsChanged();
+  }
+
+  void _notifyPodcastsChanged() {
+    if (_controller.errorMessage == null) {
+      widget.onPodcastsChanged?.call(List.unmodifiable(_controller.podcasts));
+    }
   }
 
   void _onChanged() => setState(() {});
@@ -47,11 +84,13 @@ class _LibraryScreenState extends State<LibraryScreen> {
       useSafeArea: true,
       builder: (context) => _AddSubscriptionSheet(controller: _controller),
     );
+    _notifyPodcastsChanged();
   }
 
   Future<void> _refresh() async {
     try {
       final result = await _controller.refresh();
+      _notifyPodcastsChanged();
       if (!mounted) return;
       final message = result.failures.isEmpty
           ? '更新完成，新增 ${result.newEpisodes} 集'
@@ -98,8 +137,15 @@ class _LibraryScreenState extends State<LibraryScreen> {
   Widget build(BuildContext context) {
     return CustomScrollView(
       slivers: [
-        SliverAppBar.large(
-          title: const Text('Listen'),
+        SliverAppBar(
+          backgroundColor: Colors.transparent,
+          automaticallyImplyLeading: false,
+          toolbarHeight: 68,
+          title: Text(
+            'BANK',
+            style: Theme.of(context).textTheme.headlineSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
           actions: [
             IconButton(
               tooltip: '刷新订阅',
@@ -120,17 +166,9 @@ class _LibraryScreenState extends State<LibraryScreen> {
           ],
         ),
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+          padding: const EdgeInsets.fromLTRB(18, 0, 18, 130),
           sliver: SliverList.list(
             children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('我的播客', style: Theme.of(context).textTheme.titleLarge),
-                  Text('${_controller.podcasts.length} / 10'),
-                ],
-              ),
-              const SizedBox(height: 16),
               if (_controller.isLoading)
                 const Padding(
                   padding: EdgeInsets.only(top: 48),
@@ -144,10 +182,19 @@ class _LibraryScreenState extends State<LibraryScreen> {
               else if (_controller.podcasts.isEmpty)
                 _LibraryEmptyState(onAdd: _showAddSheet)
               else
-                ..._controller.podcasts.map(
-                  (podcast) => Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: _PodcastCard(
+                GridView.builder(
+                  shrinkWrap: true,
+                  physics: const NeverScrollableScrollPhysics(),
+                  itemCount: _controller.podcasts.length,
+                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                    crossAxisCount: 2,
+                    mainAxisSpacing: 20,
+                    crossAxisSpacing: 18,
+                    childAspectRatio: 0.72,
+                  ),
+                  itemBuilder: (context, index) {
+                    final podcast = _controller.podcasts[index];
+                    return _PodcastCard(
                       podcast: podcast,
                       onOpen: () => Navigator.of(context).push(
                         MaterialPageRoute<void>(
@@ -159,8 +206,8 @@ class _LibraryScreenState extends State<LibraryScreen> {
                         ),
                       ),
                       onDelete: () => _confirmDelete(podcast),
-                    ),
-                  ),
+                    );
+                  },
                 ),
             ],
           ),
@@ -245,29 +292,60 @@ class _PodcastCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      clipBehavior: Clip.antiAlias,
-      child: ListTile(
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
         onTap: onOpen,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        leading: _Artwork(url: podcast.artworkUrl, size: 58),
-        title: Text(
-          podcast.title,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        subtitle: Text(
-          [
-            if (podcast.author?.isNotEmpty == true) podcast.author!,
-            '${podcast.episodeCount} 集',
-          ].join(' · '),
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-        ),
-        trailing: IconButton(
-          tooltip: '取消收藏',
-          onPressed: onDelete,
-          icon: const Icon(Icons.more_vert_rounded),
+        borderRadius: BorderRadius.circular(12),
+        child: LayoutBuilder(
+          builder: (context, constraints) => Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Stack(
+                children: [
+                  _Artwork(url: podcast.artworkUrl, size: constraints.maxWidth),
+                  Positioned(
+                    top: 5,
+                    right: 5,
+                    child: Material(
+                      color: Colors.black.withValues(alpha: 0.55),
+                      shape: const CircleBorder(),
+                      child: InkWell(
+                        customBorder: const CircleBorder(),
+                        onTap: onDelete,
+                        child: const Padding(
+                          padding: EdgeInsets.all(5),
+                          child: Icon(
+                            Icons.more_horiz_rounded,
+                            size: 17,
+                            color: Colors.white,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 9),
+              Text(
+                podcast.title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(fontWeight: FontWeight.w700),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                podcast.author?.isNotEmpty == true
+                    ? podcast.author!
+                    : '${podcast.episodeCount} 集',
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: Theme.of(context).textTheme.bodySmall
+                    ?.copyWith(color: colors.onSurfaceVariant),
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -382,6 +460,19 @@ class _AddSubscriptionSheetState extends State<_AddSubscriptionSheet> {
           children: [
             Text('添加播客', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 20),
+            Text('推荐播客', style: Theme.of(context).textTheme.titleMedium),
+            const SizedBox(height: 6),
+            ..._recommendedSubscriptions.map(
+              (podcast) => ListTile(
+                contentPadding: EdgeInsets.zero,
+                leading: const Icon(Icons.podcasts_rounded),
+                title: Text(podcast.title),
+                subtitle: Text(podcast.subtitle),
+                trailing: const Icon(Icons.add_circle_outline_rounded),
+                onTap: _isAdding ? null : () => _add(podcast.feedUrl),
+              ),
+            ),
+            const Divider(height: 28),
             TextField(
               controller: _searchController,
               textInputAction: TextInputAction.search,
@@ -500,7 +591,13 @@ class _EpisodeListScreenState extends State<EpisodeListScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(widget.podcast.title)),
+      appBar: AppBar(
+        title: Text(
+          widget.podcast.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
       body: FutureBuilder<List<Episode>>(
         future: _episodes,
         builder: (context, snapshot) {
@@ -514,23 +611,39 @@ class _EpisodeListScreenState extends State<EpisodeListScreen> {
           if (episodes.isEmpty) {
             return const Center(child: Text('这个播客暂时没有可播放的单集'));
           }
-          return ListView.separated(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
-            itemCount: episodes.length,
-            separatorBuilder: (context, index) => const Divider(height: 1),
-            itemBuilder: (context, index) {
-              final episode = episodes[index];
-              return ListTile(
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                title: Text(episode.title),
-                subtitle: Text(_episodeMetadata(episode)),
-                trailing: const Icon(Icons.chevron_right_rounded),
-                onTap: () {
-                  Navigator.pop(context);
-                  widget.onPlayEpisode?.call(widget.podcast, episode);
-                },
-              );
-            },
+          return CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _ShowHeader(podcast: widget.podcast)),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 22, 18, 8),
+                sliver: SliverToBoxAdapter(
+                  child: Text(
+                    '最新单集',
+                    style: Theme.of(context).textTheme.titleLarge
+                        ?.copyWith(fontWeight: FontWeight.w800),
+                  ),
+                ),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(18, 0, 18, 28),
+                sliver: SliverList.separated(
+                  itemCount: episodes.length,
+                  separatorBuilder: (context, index) => const Divider(),
+                  itemBuilder: (context, index) {
+                    final episode = episodes[index];
+                    return _EpisodeRow(
+                      episode: episode,
+                      metadata: _episodeMetadata(episode),
+                      artworkUrl: widget.podcast.artworkUrl,
+                      onPlay: () {
+                        Navigator.pop(context);
+                        widget.onPlayEpisode?.call(widget.podcast, episode);
+                      },
+                    );
+                  },
+                ),
+              ),
+            ],
           );
         },
       ),
@@ -548,5 +661,139 @@ class _EpisodeListScreenState extends State<EpisodeListScreen> {
       values.add(hours > 0 ? '$hours 小时 $minutes 分' : '$minutes 分钟');
     }
     return values.isEmpty ? '已同步' : values.join(' · ');
+  }
+}
+
+class _ShowHeader extends StatelessWidget {
+  const _ShowHeader({required this.podcast});
+
+  final Podcast podcast;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(18, 10, 18, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _Artwork(url: podcast.artworkUrl, size: 104),
+              const SizedBox(width: 15),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      podcast.title,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: Theme.of(context).textTheme.titleLarge
+                          ?.copyWith(fontWeight: FontWeight.w800, height: 1.15),
+                    ),
+                    if (podcast.author?.isNotEmpty == true) ...[
+                      const SizedBox(height: 6),
+                      Text(
+                        podcast.author!,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.bodyMedium
+                            ?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                    ],
+                    const SizedBox(height: 4),
+                    Text(
+                      '${podcast.episodeCount} 集',
+                      style: Theme.of(context).textTheme.bodySmall
+                          ?.copyWith(color: colors.onSurfaceVariant),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (podcast.description?.isNotEmpty == true) ...[
+            const SizedBox(height: 12),
+            Text(
+              podcast.description!,
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: Theme.of(context).textTheme.bodyMedium
+                  ?.copyWith(color: colors.onSurfaceVariant),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _EpisodeRow extends StatelessWidget {
+  const _EpisodeRow({
+    required this.episode,
+    required this.metadata,
+    required this.artworkUrl,
+    required this.onPlay,
+  });
+
+  final Episode episode;
+  final String metadata;
+  final String? artworkUrl;
+  final VoidCallback onPlay;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return InkWell(
+      onTap: onPlay,
+      borderRadius: BorderRadius.circular(12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(vertical: 14),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            _Artwork(url: artworkUrl, size: 62),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    episode.title,
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                      height: 1.25,
+                    ),
+                  ),
+                  const SizedBox(height: 5),
+                  Text(
+                    '▶  $metadata',
+                    style: Theme.of(context).textTheme.bodySmall
+                        ?.copyWith(color: colors.onSurfaceVariant),
+                  ),
+                  if (episode.transcriptReady ||
+                      episode.hasTranscriptSource) ...[
+                    const SizedBox(height: 5),
+                    Text(
+                      episode.transcriptReady ? '文本已就绪' : '提供时间轴文本',
+                      style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                        color: colors.primary,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+            Icon(Icons.more_horiz_rounded, color: colors.onSurfaceVariant),
+          ],
+        ),
+      ),
+    );
   }
 }

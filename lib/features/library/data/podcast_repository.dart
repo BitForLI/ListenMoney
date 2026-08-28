@@ -31,11 +31,12 @@ abstract class PodcastRepository {
     String targetLanguage,
   });
 
-  Future<ListeningStats> listeningStats(DateTime today);
+  Future<ListeningStats> listeningStats(DateTime today, {int days = 7});
 
   Future<ListeningStats> recordListening({
     required int seconds,
     required DateTime listenedAt,
+    int days = 7,
   });
 }
 
@@ -206,9 +207,12 @@ class HttpPodcastRepository implements PodcastRepository {
   }
 
   @override
-  Future<ListeningStats> listeningStats(DateTime today) async {
+  Future<ListeningStats> listeningStats(DateTime today, {int days = 7}) async {
     final date = _dateOnly(today);
-    final data = await _request('GET', '/listening/stats?today=$date');
+    final data = await _request(
+      'GET',
+      '/listening/stats?today=$date&days=$days',
+    );
     return ListeningStats.fromJson(data as Map<String, dynamic>);
   }
 
@@ -216,10 +220,11 @@ class HttpPodcastRepository implements PodcastRepository {
   Future<ListeningStats> recordListening({
     required int seconds,
     required DateTime listenedAt,
+    int days = 7,
   }) async {
     final data = await _request(
       'POST',
-      '/listening/record',
+      '/listening/record?days=$days',
       body: {'seconds': seconds, 'listened_at': listenedAt.toIso8601String()},
     );
     return ListeningStats.fromJson(data as Map<String, dynamic>);

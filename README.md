@@ -19,8 +19,17 @@ limit, duplicate-safe refresh, streaming playback, speed and seek controls,
 episode/sentence/paragraph repetition, Podcasting 2.0 transcript imports, and
 an optional local Whisper fallback, publisher-provided Chinese tracks, and
 cached machine translation through an OpenAI-compatible local service. Actual
-ready-state playback time is aggregated by local calendar day, with a seven-day
-view, total duration, and current listening streak.
+ready-state playback time is aggregated by local calendar day, with a monthly
+heatmap, total duration, and current listening streak.
+
+Android offline ASR uses a single quantized NVIDIA Parakeet TDT 0.6B v2 English
+model. It combines a continuous Silero neural VAD, token timestamps plus pauses
+for sentence boundaries, and retries low-quality long windows. Versioned ASR
+caches are reusable and can be regenerated from the transcript screen.
+
+The add-subscription sheet includes one-tap entries for Practical AI, The TED
+AI Show, and Latent Space. Episodes without an RSS timed transcript can be
+transcribed locally on a supported Android phone.
 
 ## Local checks
 
@@ -83,12 +92,20 @@ model.
 ### Free Android on-device transcription
 
 On Android, the text page can generate English timed captions directly on the
-phone without installing `faster-whisper` on the Mac. Choose **Fast (Tiny
-English)** or **Accurate (Base English)** and tap **Generate captions on this
-phone**. The selected sherpa-onnx Whisper model is downloaded on first use,
-then reused offline. Episode audio is decoded into 30-second chunks; completed
-chunks appear immediately and the transcript is kept in the app's private
-storage.
+phone without installing `faster-whisper` on the Mac. Listen always uses the
+quantized Parakeet TDT English model (about 661 MB) to prioritize recognition
+quality and precise timestamps; there is no lower-quality model selector. The
+sherpa-onnx Parakeet model and the small Silero VAD model are downloaded on
+first use, then reused offline. Legacy Whisper models are removed automatically.
+Episode audio is decoded into 30-second chunks while VAD state remains
+continuous across chunk boundaries; completed captions appear progressively
+and are kept in the app's private storage.
+
+After the subscription library loads or refreshes, Listen merges all episodes,
+sorts them by publication date, and serially prepares English captions for the
+latest five. Episodes with an existing RSS transcript or phone cache are
+skipped, and foreground transcription shares the same queue so only one model
+job runs at a time.
 
 When the local FastAPI backend is reachable, the phone also syncs the generated
 timeline to it so the existing Chinese translation flow can use it. If the Mac

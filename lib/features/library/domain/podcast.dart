@@ -48,6 +48,7 @@ class Episode {
     this.description,
     this.publishedAt,
     this.durationSeconds,
+    this.websiteUrl,
     this.hasTranscriptSource = false,
     this.transcriptReady = false,
   });
@@ -64,6 +65,7 @@ class Episode {
           ? null
           : DateTime.tryParse(json['published_at'] as String),
       durationSeconds: json['duration_seconds'] as int?,
+      websiteUrl: json['website_url'] as String?,
       hasTranscriptSource: json['has_transcript_source'] as bool? ?? false,
       transcriptReady: json['transcript_ready'] as bool? ?? false,
     );
@@ -77,6 +79,7 @@ class Episode {
   final String? description;
   final DateTime? publishedAt;
   final int? durationSeconds;
+  final String? websiteUrl;
   final bool hasTranscriptSource;
   final bool transcriptReady;
 }

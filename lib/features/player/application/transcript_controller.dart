@@ -21,7 +21,6 @@ class TranscriptController extends ChangeNotifier {
   final OnDeviceTranscriber? onDeviceTranscriber;
   TranscriptDocument? document;
   TranscriptSegment? activeSegment;
-  DeviceTranscriptionModel transcriptionModel = DeviceTranscriptionModel.fast;
   double? transcriptionProgress;
   String? transcriptionStatus;
   bool isLoading = false;
@@ -33,6 +32,8 @@ class TranscriptController extends ChangeNotifier {
   int _loadGeneration = 0;
   bool _isSelectingSegment = false;
   bool _documentNeedsSync = false;
+  TranscriptSegment? _seekGuardSegment;
+  DateTime? _seekGuardExpiresAt;
 
   bool get supportsOnDeviceTranscription =>
       onDeviceTranscriber?.isSupported ?? false;
@@ -44,14 +45,50 @@ class TranscriptController extends ChangeNotifier {
     return transcript.segments.indexWhere((item) => item.index == active.index);
   }
 
-  bool get canSelectPrevious => _activePosition > 0;
+  bool get canSelectPrevious {
+    final transcript = document;
+    if (transcript == null) return false;
+    final position = _activePosition;
+    if (position >= 0) return position > 0;
+    final playbackMs = _playback.position.inMilliseconds;
+    return transcript.segments.any((segment) => segment.startMs < playbackMs);
+  }
 
   bool get canSelectNext {
     final transcript = document;
     final position = _activePosition;
-    return transcript != null &&
-        position >= 0 &&
-        position < transcript.segments.length - 1;
+    if (transcript == null) return false;
+    if (position >= 0) return position < transcript.segments.length - 1;
+    final playbackMs = _playback.position.inMilliseconds;
+    return transcript.segments.any((segment) => segment.startMs > playbackMs);
+  }
+
+  List<TranscriptSegment> get _paragraphStarts {
+    final transcript = document;
+    if (transcript == null) return const [];
+    final starts = <TranscriptSegment>[];
+    int? previousParagraph;
+    for (final segment in transcript.segments) {
+      if (segment.paragraphIndex == previousParagraph) continue;
+      starts.add(segment);
+      previousParagraph = segment.paragraphIndex;
+    }
+    return starts;
+  }
+
+  int get _activeParagraphPosition {
+    final active = activeSegment;
+    if (active == null) return -1;
+    return _paragraphStarts.indexWhere(
+      (segment) => segment.paragraphIndex == active.paragraphIndex,
+    );
+  }
+
+  bool get canSelectPreviousParagraph => _activeParagraphPosition > 0;
+
+  bool get canSelectNextParagraph {
+    final position = _activeParagraphPosition;
+    return position >= 0 && position < _paragraphStarts.length - 1;
   }
 
   void _playbackChanged() {
@@ -65,6 +102,18 @@ class TranscriptController extends ChangeNotifier {
     final transcript = document;
     if (transcript == null || transcript.segments.isEmpty) return;
     final position = _playback.position.inMilliseconds;
+    final guarded = _seekGuardSegment;
+    if (guarded != null) {
+      final reachedTarget =
+          position >= guarded.startMs && position < guarded.endMs;
+      final guardExpired = DateTime.now().isAfter(_seekGuardExpiresAt!);
+      if (reachedTarget || guardExpired) {
+        _seekGuardSegment = null;
+        _seekGuardExpiresAt = null;
+      } else {
+        return;
+      }
+    }
     TranscriptSegment? next;
     for (final segment in transcript.segments) {
       if (position >= segment.startMs && position < segment.endMs) {
@@ -72,7 +121,16 @@ class TranscriptController extends ChangeNotifier {
         break;
       }
     }
-    if (next == null || next.index == activeSegment?.index) return;
+    if (next == null) {
+      if (position < transcript.segments.first.startMs) return;
+      if (activeSegment != null) {
+        activeSegment = null;
+        _playback.updateTranscriptRanges();
+        notifyListeners();
+      }
+      return;
+    }
+    if (next.index == activeSegment?.index) return;
     unawaited(_select(next, seek: false));
   }
 
@@ -88,6 +146,10 @@ class TranscriptController extends ChangeNotifier {
       try {
         final loaded = await _repository.importTranscript(episodeId);
         if (generation != _loadGeneration) return;
+        if (loaded.source.startsWith('android-') &&
+            loaded.source != 'android-v5-parakeet-tdt-0.6b-v2-int8') {
+          throw const PodcastRepositoryException('旧版手机字幕需要重新生成');
+        }
         _documentNeedsSync = false;
         await _showDocument(loaded);
       } catch (remoteError) {
@@ -95,9 +157,11 @@ class TranscriptController extends ChangeNotifier {
             ? await onDeviceTranscriber!.readCached(episodeId)
             : null;
         if (generation != _loadGeneration) return;
+        if (cached != null) {
+          _documentNeedsSync = true;
+          await _showDocument(cached);
+        }
         if (cached == null) rethrow;
-        _documentNeedsSync = true;
-        await _showDocument(cached);
       }
     } catch (error) {
       if (generation != _loadGeneration) return;
@@ -127,7 +191,6 @@ class TranscriptController extends ChangeNotifier {
           episode.id == episodeId) {
         final generated = await onDeviceTranscriber!.transcribe(
           episode,
-          model: transcriptionModel,
           onProgress: (progress) {
             if (_episodeId != episodeId) return;
             transcriptionProgress = progress.fraction.clamp(0, 1);
@@ -201,12 +264,6 @@ class TranscriptController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void setTranscriptionModel(DeviceTranscriptionModel model) {
-    if (isTranscribing || transcriptionModel == model) return;
-    transcriptionModel = model;
-    notifyListeners();
-  }
-
   Future<void> select(TranscriptSegment segment) async {
     _isSelectingSegment = true;
     try {
@@ -220,10 +277,35 @@ class TranscriptController extends ChangeNotifier {
 
   Future<void> selectNext() => _selectRelative(1);
 
+  Future<void> selectPreviousParagraph() => _selectParagraphRelative(-1);
+
+  Future<void> selectNextParagraph() => _selectParagraphRelative(1);
+
+  Future<void> _selectParagraphRelative(int offset) async {
+    final paragraphs = _paragraphStarts;
+    final position = _activeParagraphPosition;
+    if (position < 0) return;
+    final target = position + offset;
+    if (target < 0 || target >= paragraphs.length) return;
+    await select(paragraphs[target]);
+  }
+
   Future<void> _selectRelative(int offset) async {
     final transcript = document;
     final position = _activePosition;
-    if (transcript == null || position < 0) return;
+    if (transcript == null) return;
+    if (position < 0) {
+      final playbackMs = _playback.position.inMilliseconds;
+      final candidates = offset > 0
+          ? transcript.segments.where((segment) => segment.startMs > playbackMs)
+          : transcript.segments
+                .where((segment) => segment.startMs < playbackMs)
+                .toList()
+                .reversed;
+      if (candidates.isEmpty) return;
+      await select(candidates.first);
+      return;
+    }
     final target = position + offset;
     if (target < 0 || target >= transcript.segments.length) return;
     await select(transcript.segments[target]);
@@ -247,6 +329,10 @@ class TranscriptController extends ChangeNotifier {
   }
 
   Future<void> _select(TranscriptSegment segment, {required bool seek}) async {
+    if (seek) {
+      _seekGuardSegment = segment;
+      _seekGuardExpiresAt = DateTime.now().add(const Duration(seconds: 2));
+    }
     activeSegment = segment;
     final segments = document!.segments
         .where((item) => item.paragraphIndex == segment.paragraphIndex)

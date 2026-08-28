@@ -227,11 +227,12 @@ def create_app(
     async def record_listening(
         payload: ListeningRecord,
         request: Request,
+        days: int = Query(default=7, ge=1, le=31),
     ) -> ListeningStats:
         database = service(request).database
         local_date = payload.listened_at.date()
         database.record_listening(local_date, payload.seconds)
-        return database.listening_stats(local_date)
+        return database.listening_stats(local_date, days=days)
 
     @application.get("/listening/stats", response_model=ListeningStats)
     async def listening_stats(

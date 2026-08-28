@@ -104,7 +104,6 @@ def test_refresh_adds_only_new_episodes(tmp_path: Path) -> None:
 
     asyncio.run(scenario())
 
-
 def test_imports_rss_transcript_once_and_reuses_cache(tmp_path: Path) -> None:
     async def scenario() -> None:
         database = Database(tmp_path / "listen.sqlite3")

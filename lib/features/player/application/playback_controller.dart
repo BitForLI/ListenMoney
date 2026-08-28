@@ -31,6 +31,7 @@ class PlaybackController extends ChangeNotifier {
   final PlaybackEngine _engine;
   Episode? episode;
   String? podcastTitle;
+  String? artworkUrl;
   PlaybackRepeatMode repeatMode = PlaybackRepeatMode.off;
   PlaybackRange? sentenceRange;
   PlaybackRange? paragraphRange;
@@ -46,9 +47,14 @@ class PlaybackController extends ChangeNotifier {
 
   void _engineChanged() => notifyListeners();
 
-  Future<void> loadEpisode(Episode value, {String? fromPodcast}) async {
+  Future<void> loadEpisode(
+    Episode value, {
+    String? fromPodcast,
+    String? fromArtworkUrl,
+  }) async {
     episode = value;
     podcastTitle = fromPodcast;
+    artworkUrl = fromArtworkUrl;
     repeatMode = PlaybackRepeatMode.off;
     sentenceRange = null;
     paragraphRange = null;

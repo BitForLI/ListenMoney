@@ -62,6 +62,7 @@ class Database:
                     audio_url TEXT NOT NULL,
                     published_at TEXT,
                     duration_seconds INTEGER,
+                    website_url TEXT,
                     UNIQUE(podcast_id, guid)
                 );
 
@@ -115,6 +116,12 @@ class Database:
                 );
                 """
             )
+            episode_columns = {
+                row["name"]
+                for row in connection.execute("PRAGMA table_info(episodes)").fetchall()
+            }
+            if "website_url" not in episode_columns:
+                connection.execute("ALTER TABLE episodes ADD COLUMN website_url TEXT")
 
     @staticmethod
     def _now() -> str:
@@ -234,8 +241,8 @@ class Database:
             """
             INSERT OR IGNORE INTO episodes(
                 podcast_id, guid, title, description, audio_url,
-                published_at, duration_seconds
-            ) VALUES (?, ?, ?, ?, ?, ?, ?)
+                published_at, duration_seconds, website_url
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             """,
             [
                 (
@@ -246,6 +253,7 @@ class Database:
                     episode.audio_url,
                     episode.published_at.isoformat() if episode.published_at else None,
                     episode.duration_seconds,
+                    episode.website_url,
                 )
                 for episode in parsed_feed.episodes
             ],
@@ -257,6 +265,25 @@ class Database:
                 (podcast_id, episode.guid),
             ).fetchone()
             if row:
+                connection.execute(
+                    """
+                    UPDATE episodes
+                    SET title = ?, description = ?, audio_url = ?, published_at = ?,
+                        duration_seconds = ?, website_url = COALESCE(?, website_url)
+                    WHERE id = ?
+                    """,
+                    (
+                        episode.title,
+                        episode.description,
+                        episode.audio_url,
+                        episode.published_at.isoformat()
+                        if episode.published_at
+                        else None,
+                        episode.duration_seconds,
+                        episode.website_url,
+                        row["id"],
+                    ),
+                )
                 cls._sync_transcript_sources(connection, row["id"], episode.transcripts)
         return inserted
 

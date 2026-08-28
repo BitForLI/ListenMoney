@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/widgets/glass_surface.dart';
 import '../application/listening_controller.dart';
 import '../domain/listening_stats.dart';
 
@@ -11,61 +12,70 @@ class ProgressScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('听力进度'),
-        actions: [
-          IconButton(
-            tooltip: '刷新统计',
-            onPressed: controller.isLoading ? null : controller.load,
-            icon: const Icon(Icons.refresh_rounded),
-          ),
-          const SizedBox(width: 8),
-        ],
-      ),
+      backgroundColor: Colors.transparent,
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, child) {
           final stats = controller.stats;
-          return ListView(
-            padding: const EdgeInsets.all(20),
-            children: [
-              if (controller.isLoading && stats.daily.isEmpty)
-                const LinearProgressIndicator(),
-              _MetricCard(
-                icon: Icons.today_rounded,
-                label: '今日听力',
-                value: _formatDuration(stats.todaySeconds),
+          return CustomScrollView(
+            slivers: [
+              SliverAppBar(
+                backgroundColor: Colors.transparent,
+                automaticallyImplyLeading: false,
+                toolbarHeight: 52,
+                actions: [
+                  IconButton(
+                    tooltip: '刷新统计',
+                    onPressed: controller.isLoading ? null : controller.load,
+                    icon: const Icon(Icons.refresh_rounded),
+                  ),
+                  const SizedBox(width: 8),
+                ],
               ),
-              const SizedBox(height: 12),
-              _MetricCard(
-                icon: Icons.local_fire_department_rounded,
-                label: '连续收听',
-                value: '${stats.streakDays} 天',
-              ),
-              const SizedBox(height: 12),
-              _MetricCard(
-                icon: Icons.timer_outlined,
-                label: '累计听力',
-                value: _formatDuration(stats.totalSeconds),
-              ),
-              const SizedBox(height: 20),
-              _WeeklyChart(daily: stats.daily),
-              if (controller.pendingSeconds > 0) ...[
-                const SizedBox(height: 12),
-                Text(
-                  '正在记录本次收听…',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
+              SliverPadding(
+                padding: const EdgeInsets.fromLTRB(
+                  hazeScreenInset,
+                  0,
+                  hazeScreenInset,
+                  130,
                 ),
-              ],
-              if (controller.errorMessage != null) ...[
-                const SizedBox(height: 12),
-                Text(
-                  controller.errorMessage!,
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Theme.of(context).colorScheme.error),
+                sliver: SliverList.list(
+                  children: [
+                    if (controller.isLoading && stats.daily.isEmpty)
+                      const LinearProgressIndicator(),
+                    GlassSurface(
+                      borderRadius: BorderRadius.circular(26),
+                      blur: 24,
+                      tint: Colors.white.withValues(alpha: 0.62),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 20),
+                        child: Row(
+                          children: [
+                            _MetricCard(
+                              icon: _CalendarDayIcon(day: DateTime.now().day),
+                              value: _formatDuration(stats.todaySeconds),
+                            ),
+                            const _MetricDivider(),
+                            _MetricCard(
+                              icon: const Icon(
+                                Icons.local_fire_department_rounded,
+                              ),
+                              value: '${stats.streakDays} 天',
+                            ),
+                            const _MetricDivider(),
+                            _MetricCard(
+                              icon: const Icon(Icons.timer_outlined),
+                              value: _formatDuration(stats.totalSeconds),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 14),
+                    _MonthHeatmap(month: DateTime.now(), daily: stats.daily),
+                  ],
                 ),
-              ],
+              ),
             ],
           );
         },
@@ -83,67 +93,151 @@ class ProgressScreen extends StatelessWidget {
 }
 
 class _MetricCard extends StatelessWidget {
-  const _MetricCard({
-    required this.icon,
-    required this.label,
-    required this.value,
-  });
+  const _MetricCard({required this.icon, required this.value});
 
-  final IconData icon;
-  final String label;
+  final Widget icon;
   final String value;
 
   @override
   Widget build(BuildContext context) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(20),
-        child: Row(
-          children: [
-            Icon(icon, size: 32),
-            const SizedBox(width: 16),
-            Expanded(child: Text(label)),
-            Text(value, style: Theme.of(context).textTheme.titleMedium),
-          ],
-        ),
+    final colors = Theme.of(context).colorScheme;
+    return Expanded(
+      child: Column(
+        children: [
+          IconTheme(
+            data: IconThemeData(size: 25, color: colors.primary),
+            child: icon,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            value,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: Theme.of(context).textTheme.titleSmall
+                ?.copyWith(fontWeight: FontWeight.w800),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _WeeklyChart extends StatelessWidget {
-  const _WeeklyChart({required this.daily});
+class _CalendarDayIcon extends StatelessWidget {
+  const _CalendarDayIcon({required this.day});
 
+  final int day;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Container(
+      width: 29,
+      height: 27,
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.42),
+        borderRadius: BorderRadius.circular(7),
+        border: Border.all(color: color.withValues(alpha: 0.72), width: 1.2),
+      ),
+      child: Column(
+        children: [
+          Container(
+            height: 6,
+            decoration: BoxDecoration(
+              color: color.withValues(alpha: 0.82),
+              borderRadius: const BorderRadius.vertical(
+                top: Radius.circular(5),
+              ),
+            ),
+          ),
+          Expanded(
+            child: Center(
+              child: Text(
+                '$day',
+                style: TextStyle(
+                  color: color,
+                  fontSize: 11,
+                  height: 1,
+                  fontWeight: FontWeight.w800,
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetricDivider extends StatelessWidget {
+  const _MetricDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 64,
+      color: Theme.of(context).colorScheme.outlineVariant,
+    );
+  }
+}
+
+class _MonthHeatmap extends StatelessWidget {
+  const _MonthHeatmap({required this.month, required this.daily});
+
+  final DateTime month;
   final List<DailyListening> daily;
 
   @override
   Widget build(BuildContext context) {
-    final maximum = daily.fold<int>(
-      0,
-      (value, day) => day.seconds > value ? day.seconds : value,
-    );
-    return Card(
+    final firstDay = DateTime(month.year, month.month);
+    final daysInMonth = DateTime(month.year, month.month + 1, 0).day;
+    final leadingEmptyCells = firstDay.weekday - 1;
+    final cellCount = leadingEmptyCells + daysInMonth;
+    final secondsByDay = {
+      for (final item in daily)
+        if (item.date.year == month.year && item.date.month == month.month)
+          item.date.day: item.seconds,
+    };
+    return GlassSurface(
+      borderRadius: BorderRadius.circular(26),
+      blur: 24,
+      tint: Colors.white.withValues(alpha: 0.62),
       child: Padding(
-        padding: const EdgeInsets.fromLTRB(20, 20, 20, 16),
+        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
         child: Column(
+          mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text('最近 7 天', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 20),
-            SizedBox(
-              height: 150,
-              child: daily.isEmpty
-                  ? const Center(child: Text('还没有听力记录'))
-                  : Row(
-                      crossAxisAlignment: CrossAxisAlignment.end,
-                      children: daily
-                          .map(
-                            (day) => Expanded(
-                              child: _DayBar(day: day, maximum: maximum),
-                            ),
-                          )
-                          .toList(),
-                    ),
+            Text(
+              '听力日历',
+              style: Theme.of(context).textTheme.titleMedium
+                  ?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 12),
+            const _WeekdayHeader(),
+            const SizedBox(height: 5),
+            GridView.builder(
+              padding: EdgeInsets.zero,
+              primary: false,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              itemCount: cellCount,
+              gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                crossAxisCount: 7,
+                mainAxisSpacing: 4,
+                crossAxisSpacing: 4,
+                childAspectRatio: 1.18,
+              ),
+              itemBuilder: (context, index) {
+                final day = index - leadingEmptyCells + 1;
+                if (day < 1 || day > daysInMonth) {
+                  return const SizedBox.shrink();
+                }
+                return _HeatDay(
+                  date: DateTime(month.year, month.month, day),
+                  seconds: secondsByDay[day] ?? 0,
+                );
+              },
             ),
           ],
         ),
@@ -152,35 +246,125 @@ class _WeeklyChart extends StatelessWidget {
   }
 }
 
-class _DayBar extends StatelessWidget {
-  const _DayBar({required this.day, required this.maximum});
-
-  final DailyListening day;
-  final int maximum;
+class _WeekdayHeader extends StatelessWidget {
+  const _WeekdayHeader();
 
   @override
   Widget build(BuildContext context) {
-    final ratio = maximum == 0 ? 0.0 : day.seconds / maximum;
-    const weekdays = ['一', '二', '三', '四', '五', '六', '日'];
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.end,
-      children: [
-        Text(
-          day.seconds < 60 ? '${day.seconds}s' : '${day.seconds ~/ 60}m',
-          style: Theme.of(context).textTheme.labelSmall,
-        ),
-        const SizedBox(height: 5),
-        Container(
-          width: 18,
-          height: 8 + 92 * ratio,
-          decoration: BoxDecoration(
-            color: Theme.of(context).colorScheme.primary,
-            borderRadius: BorderRadius.circular(6),
-          ),
-        ),
-        const SizedBox(height: 8),
-        Text('周${weekdays[day.date.weekday - 1]}'),
-      ],
+    return Row(
+      children: const ['一', '二', '三', '四', '五', '六', '日']
+          .map(
+            (day) => Expanded(
+              child: Text(
+                day,
+                textAlign: TextAlign.center,
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+            ),
+          )
+          .toList(),
     );
   }
+}
+
+class _HeatDay extends StatelessWidget {
+  const _HeatDay({required this.date, required this.seconds});
+
+  final DateTime date;
+  final int seconds;
+
+  @override
+  Widget build(BuildContext context) {
+    final now = DateTime.now();
+    final isFuture = date.isAfter(DateTime(now.year, now.month, now.day));
+    final intensity = _heatIntensity(seconds);
+    final colors = Theme.of(context).colorScheme;
+    final glassColor = isFuture
+        ? Colors.white.withValues(alpha: 0.20)
+        : Color.lerp(
+            Colors.white.withValues(alpha: 0.50),
+            const Color(0xFF85858B).withValues(alpha: 0.76),
+            intensity,
+          )!;
+    final foreground = intensity >= 0.65
+        ? colors.onPrimary
+        : colors.onSurfaceVariant;
+    return Tooltip(
+      message: seconds == 0
+          ? '${date.month}月${date.day}日：未收听'
+          : '${date.month}月${date.day}日：${_shortDuration(seconds)}',
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: isFuture ? 0.30 : 0.68),
+              glassColor,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: _isSameDay(date, now)
+                ? colors.onSurface.withValues(alpha: 0.76)
+                : Colors.white.withValues(alpha: 0.76),
+            width: _isSameDay(date, now) ? 1.8 : 0.7,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: intensity * 0.10),
+              blurRadius: 8,
+              spreadRadius: -3,
+              offset: const Offset(0, 3),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 2),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Text(
+                '${date.day}',
+                style: TextStyle(
+                  color: foreground,
+                  fontWeight: _isSameDay(date, now)
+                      ? FontWeight.w700
+                      : FontWeight.w500,
+                ),
+              ),
+              if (seconds > 0)
+                Text(
+                  seconds < 60 ? '<1m' : '${seconds ~/ 60}m',
+                  style: Theme.of(context).textTheme.labelSmall
+                      ?.copyWith(color: foreground),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+double _heatIntensity(int seconds) {
+  if (seconds <= 0) return 0;
+  if (seconds < 5 * 60) return 0.25;
+  if (seconds < 15 * 60) return 0.45;
+  if (seconds < 30 * 60) return 0.65;
+  if (seconds < 60 * 60) return 0.82;
+  return 1;
+}
+
+bool _isSameDay(DateTime left, DateTime right) =>
+    left.year == right.year &&
+    left.month == right.month &&
+    left.day == right.day;
+
+String _shortDuration(int seconds) {
+  if (seconds < 60) return '$seconds 秒';
+  final hours = seconds ~/ 3600;
+  final minutes = (seconds % 3600) ~/ 60;
+  if (hours == 0) return '$minutes 分钟';
+  return minutes == 0 ? '$hours 小时' : '$hours 小时 $minutes 分钟';
 }

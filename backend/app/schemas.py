@@ -28,6 +28,7 @@ class Episode(BaseModel):
     audio_url: str
     published_at: datetime | None = None
     duration_seconds: int | None = None
+    website_url: str | None = None
     has_transcript_source: bool = False
     transcript_ready: bool = False
 

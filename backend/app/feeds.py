@@ -29,6 +29,7 @@ class ParsedEpisode:
     audio_url: str
     published_at: datetime | None
     duration_seconds: int | None
+    website_url: str | None = None
     transcripts: tuple[TranscriptReference, ...] = ()
 
 
@@ -136,6 +137,7 @@ def parse_feed_bytes(content: bytes) -> ParsedFeed:
 
     image = feed.get("image") or {}
     artwork_url = image.get("href") or feed.get("itunes_image")
+    feed_language = str(feed.get("language") or "").strip() or None
     transcript_references = _entry_transcripts(content)
     episodes: list[ParsedEpisode] = []
     for index, entry in enumerate(parsed.entries):
@@ -152,10 +154,18 @@ def parse_feed_bytes(content: bytes) -> ParsedFeed:
                 audio_url=audio_url,
                 published_at=_published_at(entry),
                 duration_seconds=_duration_seconds(entry.get("itunes_duration")),
-                transcripts=(
-                    transcript_references[index]
-                    if index < len(transcript_references)
-                    else ()
+                website_url=str(entry.get("link")) if entry.get("link") else None,
+                transcripts=tuple(
+                    TranscriptReference(
+                        url=reference.url,
+                        mime_type=reference.mime_type,
+                        language=reference.language or feed_language,
+                    )
+                    for reference in (
+                        transcript_references[index]
+                        if index < len(transcript_references)
+                        else ()
+                    )
                 ),
             )
         )

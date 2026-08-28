@@ -3,12 +3,20 @@ import 'package:listen/features/library/domain/podcast.dart';
 import 'package:listen/features/progress/domain/listening_stats.dart';
 
 class FakePodcastRepository implements PodcastRepository {
-  FakePodcastRepository({List<Podcast> podcasts = const [], this.transcript})
-    : _podcasts = [...podcasts];
+  FakePodcastRepository({
+    List<Podcast> podcasts = const [],
+    Map<int, List<Episode>> episodes = const {},
+    this.transcript,
+  }) : _podcasts = [...podcasts],
+       _episodes = episodes.map(
+         (podcastId, items) => MapEntry(podcastId, [...items]),
+       );
 
   final List<Podcast> _podcasts;
+  final Map<int, List<Episode>> _episodes;
   final TranscriptDocument? transcript;
   TranscriptDocument? savedTranscript;
+  final List<TranscriptDocument> savedTranscripts = [];
   int addCallCount = 0;
   int recordedSeconds = 0;
 
@@ -31,7 +39,9 @@ class FakePodcastRepository implements PodcastRepository {
   }
 
   @override
-  Future<List<Episode>> listEpisodes(int podcastId) async => const [];
+  Future<List<Episode>> listEpisodes(int podcastId) async => [
+    ...?_episodes[podcastId],
+  ];
 
   @override
   Future<List<Podcast>> listSubscriptions() async => [..._podcasts];
@@ -74,6 +84,7 @@ class FakePodcastRepository implements PodcastRepository {
   @override
   Future<TranscriptDocument> saveTranscript(TranscriptDocument document) async {
     savedTranscript = document;
+    savedTranscripts.add(document);
     return document;
   }
 
@@ -106,16 +117,16 @@ class FakePodcastRepository implements PodcastRepository {
   }
 
   @override
-  Future<ListeningStats> listeningStats(DateTime today) async {
+  Future<ListeningStats> listeningStats(DateTime today, {int days = 7}) async {
     return ListeningStats(
       todaySeconds: recordedSeconds,
       totalSeconds: recordedSeconds,
       streakDays: recordedSeconds > 0 ? 1 : 0,
       daily: List.generate(
-        7,
+        days,
         (index) => DailyListening(
-          date: DateTime(today.year, today.month, today.day - 6 + index),
-          seconds: index == 6 ? recordedSeconds : 0,
+          date: DateTime(today.year, today.month, today.day - days + 1 + index),
+          seconds: index == days - 1 ? recordedSeconds : 0,
         ),
       ),
     );
@@ -125,8 +136,9 @@ class FakePodcastRepository implements PodcastRepository {
   Future<ListeningStats> recordListening({
     required int seconds,
     required DateTime listenedAt,
+    int days = 7,
   }) async {
     recordedSeconds += seconds;
-    return listeningStats(listenedAt);
+    return listeningStats(listenedAt, days: days);
   }
 }

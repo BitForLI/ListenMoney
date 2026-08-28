@@ -47,7 +47,8 @@ class ListeningController extends ChangeNotifier {
     isLoading = true;
     if (!_disposed) notifyListeners();
     try {
-      stats = await _repository.listeningStats(DateTime.now());
+      final now = DateTime.now();
+      stats = await _repository.listeningStats(now, days: now.day);
       errorMessage = null;
     } catch (error) {
       errorMessage = error.toString();
@@ -78,6 +79,7 @@ class ListeningController extends ChangeNotifier {
       stats = await _repository.recordListening(
         seconds: seconds,
         listenedAt: DateTime.now(),
+        days: DateTime.now().day,
       );
       errorMessage = null;
     } catch (error) {
