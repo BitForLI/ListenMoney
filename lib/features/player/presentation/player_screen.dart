@@ -10,6 +10,7 @@ import '../../library/domain/podcast.dart';
 import '../application/playback_controller.dart';
 import '../application/playback_engine.dart';
 import '../application/transcript_controller.dart';
+import '../data/subtitle_exporter.dart';
 
 class PlayerScreen extends StatelessWidget {
   const PlayerScreen({
@@ -958,6 +959,27 @@ class _TranscriptReadingPage extends StatelessWidget {
   final ValueChanged<PlaybackRepeatMode> onSelectRepeat;
   final VoidCallback onShowPlayer;
 
+  Future<void> _exportTranscript(
+    BuildContext context,
+    TranscriptDocument document,
+  ) async {
+    final renderBox = context.findRenderObject();
+    final origin = renderBox is RenderBox && renderBox.hasSize
+        ? renderBox.localToGlobal(Offset.zero) & renderBox.size
+        : null;
+    try {
+      await const SubtitleExporter().export(
+        document,
+        episodeTitle: controller.episode?.title ?? 'Listen 字幕',
+        sharePositionOrigin: origin,
+      );
+    } catch (error) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context)
+          .showSnackBar(SnackBar(content: Text('字幕导出失败：$error')));
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -994,6 +1016,12 @@ class _TranscriptReadingPage extends StatelessWidget {
                         const Icon(Icons.subtitles_rounded, size: 22),
                       ],
                       const Spacer(),
+                      if (document != null)
+                        IconButton(
+                          tooltip: '导出字幕',
+                          onPressed: () => _exportTranscript(context, document),
+                          icon: const Icon(Icons.file_download_outlined),
+                        ),
                       if (document != null &&
                           transcriptController.supportsOnDeviceTranscription)
                         IconButton(

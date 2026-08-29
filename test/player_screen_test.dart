@@ -257,6 +257,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
+    expect(find.byTooltip('导出字幕'), findsOneWidget);
     final transcriptList = find.byKey(const ValueKey('transcript_list'));
     final scrollable = find.descendant(
       of: transcriptList,
