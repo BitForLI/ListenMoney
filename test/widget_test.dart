@@ -207,7 +207,7 @@ void main() {
     );
   });
 
-  testWidgets('progress and captions return to the page that opened player', (
+  testWidgets('progress opens player but captions reserve vertical scrolling', (
     tester,
   ) async {
     tester.view.devicePixelRatio = 1;
@@ -255,7 +255,14 @@ void main() {
 
     await tester.tap(find.bySemanticsLabel('Transcript'));
     await tester.pumpAndSettle();
-    await openAndReturnTo(find.byKey(const ValueKey('transcript_only_page')));
+    expect(find.byKey(const ValueKey('transcript_only_page')), findsOneWidget);
+    await tester.drag(
+      find.byKey(const ValueKey('player_swipe_launcher')),
+      const Offset(0, -180),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('transcript_only_page')), findsOneWidget);
+    expect(find.byKey(const ValueKey('player_overlay')), findsNothing);
 
     await tester.tap(find.bySemanticsLabel('Library'));
     await tester.pumpAndSettle();

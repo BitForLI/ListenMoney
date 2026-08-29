@@ -165,10 +165,18 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   void _startPlayerSwipe(PointerDownEvent event) {
+    if (_selectedIndex == _transcriptIndex) {
+      _playerSwipeStart = null;
+      return;
+    }
     _playerSwipeStart = event.localPosition;
   }
 
   void _updatePlayerSwipe(PointerMoveEvent event) {
+    if (_selectedIndex == _transcriptIndex) {
+      _playerSwipeStart = null;
+      return;
+    }
     final start = _playerSwipeStart;
     if (start == null || _playerRouteOpening) return;
     final movement = event.localPosition - start;
