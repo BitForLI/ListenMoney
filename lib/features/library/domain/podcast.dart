@@ -237,6 +237,7 @@ class TranscriptDocument {
     required this.segments,
     this.targetLanguage,
     this.translationSource,
+    this.audioKey,
   });
 
   factory TranscriptDocument.fromJson(Map<String, dynamic> json) {
@@ -251,6 +252,7 @@ class TranscriptDocument {
           .toList(),
       targetLanguage: json['target_language'] as String?,
       translationSource: json['translation_source'] as String?,
+      audioKey: json['audio_key'] as String?,
     );
   }
 
@@ -261,6 +263,7 @@ class TranscriptDocument {
     'segments': segments.map((segment) => segment.toJson()).toList(),
     'target_language': targetLanguage,
     'translation_source': translationSource,
+    'audio_key': audioKey,
   };
 
   final int episodeId;
@@ -269,4 +272,5 @@ class TranscriptDocument {
   final List<TranscriptSegment> segments;
   final String? targetLanguage;
   final String? translationSource;
+  final String? audioKey;
 }

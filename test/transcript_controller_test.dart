@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:listen/features/library/domain/podcast.dart';
 import 'package:listen/features/player/application/playback_controller.dart';
@@ -52,26 +54,31 @@ void main() {
       await transcript.select(document.segments[1]);
       await playback.setRepeatMode(PlaybackRepeatMode.sentence);
 
-      expect(engine.clipStart, const Duration(milliseconds: 2500));
-      expect(engine.clipEnd, const Duration(milliseconds: 4000));
+      expect(playback.sentenceRange?.start, const Duration(milliseconds: 2500));
+      expect(playback.sentenceRange?.end, const Duration(milliseconds: 4000));
 
       expect(transcript.canSelectPrevious, isTrue);
       expect(transcript.canSelectNext, isFalse);
       await transcript.selectPrevious();
       expect(transcript.activeSegment?.index, 0);
       expect(engine.position, const Duration(milliseconds: 1000));
-      expect(engine.clipStart, const Duration(milliseconds: 1000));
-      expect(engine.clipEnd, const Duration(milliseconds: 2500));
+      expect(playback.sentenceRange?.start, const Duration(milliseconds: 1000));
+      expect(playback.sentenceRange?.end, const Duration(milliseconds: 2500));
 
       await transcript.selectNext();
       expect(transcript.activeSegment?.index, 1);
       expect(engine.position, const Duration(milliseconds: 2500));
-      expect(engine.clipStart, const Duration(milliseconds: 2500));
-      expect(engine.clipEnd, const Duration(milliseconds: 4000));
+      expect(playback.sentenceRange?.start, const Duration(milliseconds: 2500));
+      expect(playback.sentenceRange?.end, const Duration(milliseconds: 4000));
 
       await playback.setRepeatMode(PlaybackRepeatMode.paragraph);
-      expect(engine.clipStart, const Duration(milliseconds: 1000));
-      expect(engine.clipEnd, const Duration(milliseconds: 4000));
+      expect(
+        playback.paragraphRange?.start,
+        const Duration(milliseconds: 1000),
+      );
+      expect(playback.paragraphRange?.end, const Duration(milliseconds: 4000));
+      expect(engine.loadCount, 1);
+      expect(engine.pauseCount, 0);
 
       await transcript.translate();
       expect(
@@ -122,18 +129,24 @@ void main() {
       playback,
     );
     await transcript.load(1);
+    await transcript.select(document.segments.first);
     await playback.setRepeatMode(PlaybackRepeatMode.sentence);
 
     engine.deferSeek = true;
-    await transcript.selectNext();
+    final selection = transcript.selectNext();
+    await pumpEventQueue();
     engine.emitPosition(const Duration(milliseconds: 1000));
 
-    expect(transcript.activeSegment?.index, 1);
-    expect(engine.clipStart, const Duration(milliseconds: 2500));
-    expect(engine.clipEnd, const Duration(milliseconds: 4000));
+    // A requested position is not evidence that the audio has reached it.
+    expect(transcript.activeSegment?.index, 0);
+    expect(playback.position, const Duration(milliseconds: 2500));
+    expect(playback.actualPosition, const Duration(milliseconds: 1000));
 
     engine.completeSeek();
+    await selection;
     expect(transcript.activeSegment?.index, 1);
+    expect(playback.sentenceRange?.start, const Duration(milliseconds: 2500));
+    expect(playback.sentenceRange?.end, const Duration(milliseconds: 4000));
   });
 
   test('Android local transcript is shown progressively and synced', () async {
@@ -171,16 +184,13 @@ void main() {
 class _DeferredSeekPlaybackEngine extends FakePlaybackEngine {
   bool deferSeek = false;
   Duration? _requestedPosition;
+  final _seekCompleted = Completer<void>();
 
   @override
   Future<void> seek(Duration value) async {
     if (!deferSeek) return super.seek(value);
     _requestedPosition = value;
-  }
-
-  void emitPosition(Duration value) {
-    position = value;
-    notifyListeners();
+    await _seekCompleted.future;
   }
 
   void completeSeek() {
@@ -188,6 +198,7 @@ class _DeferredSeekPlaybackEngine extends FakePlaybackEngine {
     if (value == null) return;
     _requestedPosition = null;
     emitPosition(value);
+    _seekCompleted.complete();
   }
 }
 

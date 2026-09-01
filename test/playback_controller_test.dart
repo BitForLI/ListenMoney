@@ -13,19 +13,14 @@ void main() {
     audioUrl: 'https://example.com/episode.mp3',
   );
 
-  test('loads the first episode before performing clip operations', () async {
-    final engine = FakePlaybackEngine()
-      ..clipStart = const Duration(seconds: 10)
-      ..clipEnd = const Duration(seconds: 20)
-      ..looping = true;
+  test('loads a full episode and clears looping', () async {
+    final engine = FakePlaybackEngine()..looping = true;
     final controller = PlaybackController(engine);
 
     await controller.loadEpisode(episode, fromPodcast: 'Test Podcast');
 
     expect(engine.loadedUrl, episode.audioUrl);
     expect(engine.hasAudioSource, isTrue);
-    expect(engine.clipStart, isNull);
-    expect(engine.clipEnd, isNull);
     expect(engine.looping, isFalse);
     expect(controller.podcastTitle, 'Test Podcast');
   });
@@ -33,6 +28,7 @@ void main() {
   test('loops an exact sentence range', () async {
     final engine = FakePlaybackEngine();
     final controller = PlaybackController(engine);
+    addTearDown(controller.dispose);
     await controller.loadEpisode(episode);
     controller.updateTranscriptRanges(
       sentence: PlaybackRange(
@@ -43,10 +39,16 @@ void main() {
 
     await controller.setRepeatMode(PlaybackRepeatMode.sentence);
 
-    expect(engine.clipStart, const Duration(seconds: 10));
-    expect(engine.clipEnd, const Duration(seconds: 14));
     expect(engine.position, const Duration(seconds: 10));
-    expect(engine.looping, isTrue);
+    expect(controller.duration, const Duration(minutes: 10));
+    expect(engine.looping, isFalse);
+    expect(engine.playing, isFalse);
+    await engine.play();
+    engine.emitPosition(const Duration(seconds: 14));
+    await pumpEventQueue();
+    expect(engine.position, const Duration(seconds: 10));
+    expect(engine.loadCount, 1);
+    expect(engine.pauseCount, 0);
     expect(engine.playing, isTrue);
   });
 

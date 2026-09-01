@@ -19,15 +19,13 @@ abstract class PlaybackEngine implements Listenable {
   Future<void> seek(Duration position);
   Future<void> setSpeed(double speed);
   Future<void> setLooping(bool enabled);
-  Future<void> setClip({Duration? start, Duration? end});
   void dispose();
 }
 
 class JustAudioPlaybackEngine extends ChangeNotifier implements PlaybackEngine {
   JustAudioPlaybackEngine() {
     _subscriptions = [
-      _player.positionStream.listen((value) {
-        _position = value;
+      _player.positionStream.listen((_) {
         notifyListeners();
       }),
       _player.bufferedPositionStream.listen((value) {
@@ -60,7 +58,6 @@ class JustAudioPlaybackEngine extends ChangeNotifier implements PlaybackEngine {
   final just_audio.AudioPlayer _player = just_audio.AudioPlayer();
   late final List<StreamSubscription<Object?>> _subscriptions;
 
-  Duration _position = Duration.zero;
   Duration _bufferedPosition = Duration.zero;
   Duration? _duration;
   bool _playing = false;
@@ -68,7 +65,7 @@ class JustAudioPlaybackEngine extends ChangeNotifier implements PlaybackEngine {
   EngineProcessingState _processingState = EngineProcessingState.idle;
 
   @override
-  Duration get position => _position;
+  Duration get position => _player.position;
 
   @override
   Duration get bufferedPosition => _bufferedPosition;
@@ -87,7 +84,26 @@ class JustAudioPlaybackEngine extends ChangeNotifier implements PlaybackEngine {
 
   @override
   Future<void> load(String audioUrl) async {
-    await _player.setUrl(audioUrl);
+    final uri = Uri.parse(audioUrl);
+    await _player.setAudioSource(
+      uri.scheme == 'file'
+          ? just_audio.ProgressiveAudioSource(
+              uri,
+              options: const just_audio.ProgressiveAudioSourceOptions(
+                androidExtractorOptions: just_audio.AndroidExtractorOptions(
+                  // Index seeks can scan unindexed data. Use them on the exact local
+                  // transcription recording, not a long remote stream.
+                  mp3Flags: just_audio
+                      .AndroidExtractorOptions
+                      .flagMp3EnableIndexSeeking,
+                ),
+                darwinAssetOptions: just_audio.DarwinAssetOptions(
+                  preferPreciseDurationAndTiming: true,
+                ),
+              ),
+            )
+          : just_audio.AudioSource.uri(uri),
+    );
   }
 
   @override
@@ -98,11 +114,6 @@ class JustAudioPlaybackEngine extends ChangeNotifier implements PlaybackEngine {
 
   @override
   Future<void> seek(Duration position) => _player.seek(position);
-
-  @override
-  Future<void> setClip({Duration? start, Duration? end}) {
-    return _player.setClip(start: start, end: end);
-  }
 
   @override
   Future<void> setLooping(bool enabled) {

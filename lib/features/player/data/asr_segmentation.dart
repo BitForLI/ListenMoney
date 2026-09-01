@@ -17,11 +17,24 @@ class TimedTranscriptCue {
 List<TimedTranscriptCue> buildTimedTranscriptCues({
   required List<String> tokens,
   required List<double> timestamps,
-  required String fallbackText,
   required int offsetMs,
   required int durationMs,
   required int paragraphOffset,
 }) {
+  // Never invent a timeline from word count. Unaligned recognition must be
+  // retried (or left as a gap), not displayed as timed subtitles.
+  if (durationMs <= 0 || tokens.isEmpty || tokens.length != timestamps.length) {
+    return const [];
+  }
+  var previousTimestamp = 0.0;
+  for (final timestamp in timestamps) {
+    if (!timestamp.isFinite ||
+        timestamp < previousTimestamp ||
+        timestamp * 1000 >= durationMs) {
+      return const [];
+    }
+    previousTimestamp = timestamp;
+  }
   final entries = <({String text, int startMs})>[];
   final count = math.min(tokens.length, timestamps.length);
   for (var index = 0; index < count; index += 1) {
@@ -32,14 +45,7 @@ List<TimedTranscriptCue> buildTimedTranscriptCues({
       startMs: (timestamps[index] * 1000).round().clamp(0, durationMs),
     ));
   }
-  if (entries.isEmpty) {
-    return _fallbackTimedCues(
-      fallbackText,
-      offsetMs: offsetMs,
-      durationMs: durationMs,
-      paragraphOffset: paragraphOffset,
-    );
-  }
+  if (entries.isEmpty) return const [];
 
   final cues = <TimedTranscriptCue>[];
   var buffer = '';
@@ -72,7 +78,7 @@ List<TimedTranscriptCue> buildTimedTranscriptCues({
         durationMs,
         math.min(nextStart, lastTokenStart + 520),
       );
-      final end = math.max(cueStart + 80, spokenEnd);
+      final end = math.min(durationMs, math.max(cueStart + 1, spokenEnd));
       cues.add(
         TimedTranscriptCue(
           startMs: offsetMs + cueStart,
@@ -85,36 +91,6 @@ List<TimedTranscriptCue> buildTimedTranscriptCues({
     buffer = '';
   }
   return cues;
-}
-
-List<TimedTranscriptCue> _fallbackTimedCues(
-  String text, {
-  required int offsetMs,
-  required int durationMs,
-  required int paragraphOffset,
-}) {
-  final sentences = RegExp(r'[^.!?]+[.!?]?')
-      .allMatches(text)
-      .map((match) => match.group(0)!.trim())
-      .where((value) => value.isNotEmpty)
-      .toList();
-  if (sentences.isEmpty) return const [];
-  final weights = sentences
-      .map((sentence) => math.max(1, sentence.split(RegExp(r'\s+')).length))
-      .toList();
-  final totalWeight = weights.fold<int>(0, (sum, value) => sum + value);
-  var elapsedWeight = 0;
-  return List.generate(sentences.length, (index) {
-    final start = (durationMs * elapsedWeight / totalWeight).round();
-    elapsedWeight += weights[index];
-    final end = (durationMs * elapsedWeight / totalWeight).round();
-    return TimedTranscriptCue(
-      startMs: offsetMs + start,
-      endMs: offsetMs + math.max(start + 1, end),
-      text: sentences[index],
-      paragraphIndex: paragraphOffset + index ~/ 4,
-    );
-  });
 }
 
 String cleanAsrToken(String token) {

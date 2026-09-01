@@ -24,11 +24,12 @@ class PlaybackUnavailableException implements Exception {
 }
 
 class PlaybackController extends ChangeNotifier {
-  PlaybackController(this._engine) {
+  PlaybackController(this._engine, {this.audioSourceForEpisode}) {
     _engine.addListener(_engineChanged);
   }
 
   final PlaybackEngine _engine;
+  final Future<String?> Function(Episode episode)? audioSourceForEpisode;
   Episode? episode;
   String? podcastTitle;
   String? artworkUrl;
@@ -38,20 +39,80 @@ class PlaybackController extends ChangeNotifier {
   bool isLoading = false;
   String? errorMessage;
 
-  Duration get position => _engine.position;
+  PlaybackRange? _repeatRange;
+  Timer? _repeatTimer;
+  Duration? _pendingPosition;
+  Future<void> _operations = Future<void>.value();
+  int _generation = 0;
+  bool _disposed = false;
+  String? _loadedAudioUrl;
+
+  bool get isSeeking => _pendingPosition != null;
+  String? get loadedAudioUrl => _loadedAudioUrl;
+  Duration get actualPosition => _engine.position;
+
+  Duration get position => _pendingPosition ?? _engine.position;
   Duration get bufferedPosition => _engine.bufferedPosition;
   Duration get duration => _engine.duration ?? Duration.zero;
   bool get playing => _engine.playing;
   double get speed => _engine.speed;
   EngineProcessingState get processingState => _engine.processingState;
 
-  void _engineChanged() => notifyListeners();
+  void _engineChanged() {
+    if (_disposed) return;
+    if (_repeatIfAtEnd()) return;
+    notifyListeners();
+    _scheduleRepeat();
+  }
+
+  // A sentence is a range on the original episode, never a new audio source.
+  // In particular, just_audio clips have their own zero-based timeline.
+  bool _repeatIfAtEnd() {
+    final range = _repeatRange;
+    if (isLoading || isSeeking || !playing || range == null) return false;
+    if (position < range.end) return false;
+    unawaited(_seek(range.start, reanchor: false));
+    return true;
+  }
+
+  void _scheduleRepeat() {
+    _repeatTimer?.cancel();
+    final range = _repeatRange;
+    if (_disposed ||
+        isLoading ||
+        isSeeking ||
+        !playing ||
+        range == null ||
+        processingState != EngineProcessingState.ready) {
+      return;
+    }
+    final remaining = range.end - position;
+    final delayUs = (remaining.inMicroseconds / speed).ceil();
+    _repeatTimer = Timer(
+      Duration(microseconds: delayUs.clamp(1000, 60000000)),
+      () {
+        if (!_repeatIfAtEnd()) _scheduleRepeat();
+      },
+    );
+  }
+
+  Future<void> _enqueue(Future<void> Function() action) {
+    final result = _operations.then((_) async {
+      if (!_disposed) await action();
+    });
+    _operations = result.catchError((Object _) {});
+    return result;
+  }
 
   Future<void> loadEpisode(
     Episode value, {
     String? fromPodcast,
     String? fromArtworkUrl,
   }) async {
+    final generation = ++_generation;
+    _repeatTimer?.cancel();
+    _repeatRange = null;
+    _pendingPosition = Duration.zero;
     episode = value;
     podcastTitle = fromPodcast;
     artworkUrl = fromArtworkUrl;
@@ -62,15 +123,56 @@ class PlaybackController extends ChangeNotifier {
     errorMessage = null;
     notifyListeners();
     try {
-      await _engine.setLooping(false);
-      await _engine.load(value.audioUrl);
+      await _enqueue(() async {
+        if (generation != _generation) return;
+        final source =
+            await audioSourceForEpisode?.call(value) ?? value.audioUrl;
+        if (generation != _generation) return;
+        await _engine.setLooping(false);
+        await _engine.load(source);
+        _loadedAudioUrl = source;
+      });
     } catch (error) {
-      errorMessage = '无法加载音频：$error';
+      if (generation == _generation) errorMessage = '无法加载音频：$error';
     } finally {
-      isLoading = false;
-      notifyListeners();
+      if (!_disposed && generation == _generation) {
+        _pendingPosition = null;
+        isLoading = false;
+        notifyListeners();
+      }
     }
   }
+
+  Future<void> useTranscriptAudio(int episodeId, String uri) =>
+      _enqueue(() async {
+        if (episode?.id != episodeId || _loadedAudioUrl == uri) return;
+        final generation = ++_generation;
+        final resumeAt = position;
+        final resumePlayback = playing;
+        _pendingPosition = resumeAt;
+        isLoading = true;
+        _repeatTimer?.cancel();
+        notifyListeners();
+        try {
+          await _engine.load(uri);
+          if (generation != _generation) return;
+          final maximum = duration;
+          await _engine.seek(
+            maximum > Duration.zero && resumeAt > maximum ? maximum : resumeAt,
+          );
+          await _engine.setLooping(repeatMode == PlaybackRepeatMode.episode);
+          _loadedAudioUrl = uri;
+          errorMessage = null;
+          if (resumePlayback) unawaited(_engine.play());
+        } finally {
+          if (!_disposed && generation == _generation) {
+            _pendingPosition = null;
+            isLoading = false;
+            notifyListeners();
+            _scheduleRepeat();
+          }
+        }
+      });
 
   void updateTranscriptRanges({
     PlaybackRange? sentence,
@@ -78,7 +180,12 @@ class PlaybackController extends ChangeNotifier {
   }) {
     sentenceRange = sentence;
     paragraphRange = paragraph;
+    if (_repeatRange == null && !isSeeking) {
+      final candidate = _rangeFor(repeatMode);
+      if (_contains(candidate, position)) _repeatRange = candidate;
+    }
     notifyListeners();
+    _scheduleRepeat();
   }
 
   Future<void> togglePlayPause() async {
@@ -87,7 +194,7 @@ class PlaybackController extends ChangeNotifier {
       await _engine.pause();
     } else {
       if (_engine.processingState == EngineProcessingState.completed) {
-        await _engine.seek(_rangeFor(repeatMode)?.start ?? Duration.zero);
+        await _seek(_repeatRange?.start ?? Duration.zero, reanchor: false);
       }
       unawaited(
         _engine.play().catchError((Object error) {
@@ -98,14 +205,47 @@ class PlaybackController extends ChangeNotifier {
     }
   }
 
-  Future<void> seek(Duration target) async {
+  Future<void> seek(Duration target) => _seek(target, reanchor: true);
+
+  Future<void> _seek(Duration target, {required bool reanchor}) async {
+    if (_disposed || isLoading) return;
     final maximum = duration;
     final clamped = target < Duration.zero
         ? Duration.zero
         : maximum > Duration.zero && target > maximum
         ? maximum
         : target;
-    await _engine.seek(clamped);
+    final generation = ++_generation;
+    _repeatTimer?.cancel();
+    _pendingPosition = clamped;
+    errorMessage = null;
+    if (reanchor) _repeatRange = null;
+    // Controls can preview the requested position; subtitle following waits
+    // for the native seek to complete before using actualPosition.
+    notifyListeners();
+    try {
+      await _enqueue(() async {
+        if (generation != _generation) return;
+        await _engine.seek(clamped);
+      });
+    } catch (error) {
+      if (generation == _generation) {
+        errorMessage = '跳转失败：$error';
+        // Do not repeatedly retry a failed boundary seek from the loop timer.
+        _repeatRange = null;
+        repeatMode = PlaybackRepeatMode.off;
+      }
+    } finally {
+      if (!_disposed && generation == _generation) {
+        _pendingPosition = null;
+        notifyListeners();
+        if (reanchor) {
+          final candidate = _rangeFor(repeatMode);
+          if (_contains(candidate, actualPosition)) _repeatRange = candidate;
+        }
+        _scheduleRepeat();
+      }
+    }
   }
 
   Future<void> skip(Duration offset) => seek(position + offset);
@@ -118,7 +258,12 @@ class PlaybackController extends ChangeNotifier {
     PlaybackRepeatMode.off || PlaybackRepeatMode.episode => null,
   };
 
+  bool _contains(PlaybackRange? range, Duration value) =>
+      range != null && value >= range.start && value < range.end;
+
   Future<void> setRepeatMode(PlaybackRepeatMode mode) async {
+    if (_disposed || isLoading) return;
+    final generation = _generation;
     final range = _rangeFor(mode);
     if ((mode == PlaybackRepeatMode.sentence ||
             mode == PlaybackRepeatMode.paragraph) &&
@@ -126,21 +271,24 @@ class PlaybackController extends ChangeNotifier {
       throw const PlaybackUnavailableException('需要先生成该单集的时间轴字幕');
     }
 
-    await _engine.pause();
-    if (mode == PlaybackRepeatMode.episode || mode == PlaybackRepeatMode.off) {
-      await _engine.setClip();
-    } else {
-      await _engine.setClip(start: range!.start, end: range.end);
-      await _engine.seek(range.start);
-    }
-    await _engine.setLooping(mode != PlaybackRepeatMode.off);
+    _repeatTimer?.cancel();
     repeatMode = mode;
+    _repeatRange = range;
+    await _enqueue(
+      () => _engine.setLooping(repeatMode == PlaybackRepeatMode.episode),
+    );
+    if (_disposed || generation != _generation || repeatMode != mode) return;
+    if (range != null) await _seek(range.start, reanchor: false);
     notifyListeners();
-    unawaited(_engine.play());
+    // Switching modes does not implicitly resume a paused episode.
+    _scheduleRepeat();
   }
 
   @override
   void dispose() {
+    _disposed = true;
+    _generation += 1;
+    _repeatTimer?.cancel();
     _engine
       ..removeListener(_engineChanged)
       ..dispose();

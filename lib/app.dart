@@ -14,6 +14,7 @@ import 'features/player/application/automatic_transcription_runner.dart';
 import 'features/player/application/on_device_transcriber.dart';
 import 'features/player/application/transcript_controller.dart';
 import 'features/player/data/mobile_on_device_transcriber.dart';
+import 'features/player/data/transcript_audio_store.dart';
 import 'features/player/data/mobile_transcript_translator.dart';
 import 'features/player/presentation/player_screen.dart';
 import 'features/progress/presentation/progress_screen.dart';
@@ -74,23 +75,36 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     _ownsPlaybackController = widget.playbackController == null;
-    _playbackController =
-        widget.playbackController ??
-        PlaybackController(JustAudioPlaybackEngine());
     _podcastRepository =
         widget.podcastRepository ??
         LocalPodcastRepository(translator: MobileTranscriptTranslator());
+    final audioStore = TranscriptAudioStore();
+    _playbackController =
+        widget.playbackController ??
+        PlaybackController(
+          JustAudioPlaybackEngine(),
+          audioSourceForEpisode: (episode) async {
+            final repository = _podcastRepository;
+            if (repository is! LocalPodcastRepository) return null;
+            final document = await repository.readCachedTranscript(episode.id);
+            final key = document?.audioKey;
+            if (key == null) return null;
+            return (await audioStore.resolve(key))?.uri.toString();
+          },
+        );
     final onDeviceTranscriber = QueuedOnDeviceTranscriber(
-      MobileOnDeviceTranscriber(),
+      MobileOnDeviceTranscriber(audioStore: audioStore),
     );
     _transcriptController = TranscriptController(
       _podcastRepository,
       _playbackController,
       onDeviceTranscriber: onDeviceTranscriber,
+      audioStore: audioStore,
     );
     _automaticTranscriptionRunner = AutomaticTranscriptionRunner(
       _podcastRepository,
       onDeviceTranscriber,
+      audioStore: audioStore,
     );
     _listeningController = ListeningController(
       _podcastRepository,

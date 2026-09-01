@@ -1,9 +1,15 @@
 import '../../library/data/podcast_repository.dart';
 import '../../library/domain/podcast.dart';
+import '../data/transcript_audio_store.dart';
 import 'on_device_transcriber.dart';
 
 class AutomaticTranscriptionRunner {
-  AutomaticTranscriptionRunner(this._repository, this._transcriber);
+  AutomaticTranscriptionRunner(
+    this._repository,
+    this._transcriber, {
+    this.audioStore,
+  });
+  final TranscriptAudioStore? audioStore;
 
   static const latestEpisodeLimit = 5;
 
@@ -46,7 +52,7 @@ class AutomaticTranscriptionRunner {
       if (!_attemptedEpisodeIds.add(episode.id)) continue;
       try {
         final cached = await _transcriber.readCached(episode.id);
-        if (cached != null && cached.segments.isNotEmpty) continue;
+        if (cached != null && await _isUsable(cached)) continue;
         if (await _hasUsableImportedTranscript(episode.id)) continue;
         final document = await _transcriber.transcribe(episode);
         try {
@@ -63,12 +69,20 @@ class AutomaticTranscriptionRunner {
   Future<bool> _hasUsableImportedTranscript(int episodeId) async {
     try {
       final document = await _repository.importTranscript(episodeId);
-      if (document.segments.isEmpty) return false;
-      if (!document.source.startsWith('android-')) return true;
-      return document.source == 'android-v5-parakeet-tdt-0.6b-v2-int8';
+      return await _isUsable(document);
     } catch (_) {
       return false;
     }
+  }
+
+  Future<bool> _isUsable(TranscriptDocument document) async {
+    if (document.segments.isEmpty) return false;
+    final store = audioStore;
+    if (store == null) return true;
+    final key = document.audioKey;
+    return document.source == currentPhoneTranscriptSource &&
+        key != null &&
+        await store.resolve(key) != null;
   }
 
   static int _newestFirst(Episode left, Episode right) {

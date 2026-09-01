@@ -18,6 +18,20 @@ The released app does not need FastAPI, Cloudflare, a Mac, USB debugging, or
 - Google ML Kit translation models are downloaded once, then run on device.
 - Podcasting 2.0 VTT, SRT, and JSON transcripts are imported directly from RSS.
 
+Sentence/paragraph repetition and all seek controls share the full episode's
+timeline; changing sentences does not reload a clipped audio source. New phone
+transcripts retain their original compressed audio in private app storage and
+play from that exact recording (including when offline), so separate network
+requests cannot change the audio underneath a saved transcript. This uses extra
+storage roughly equal to each transcribed episode's download size. Existing
+transcripts remain readable but unbound/older timelines no longer drive
+highlighting, auto-scroll or sentence jumps. Opening captions requests a new
+aligned transcript; the newest-five background queue also refreshes old
+unbound transcripts. Generation v6 uses native token timestamps only and leaves
+unaligned regions as gaps instead of estimating timing from text length. During
+seeking/buffering captions wait for the player to confirm its position. These
+checks do not guarantee that every recognized word is correct.
+
 The previous FastAPI implementation remains in `backend/` as a tested reference
 service, but the Flutter app has no runtime dependency on it.
 
@@ -45,5 +59,5 @@ cd backend && .venv/bin/python -m pytest tests -q
 /Users/x/develop/flutter/bin/flutter build apk --release
 ```
 
-The Android application id is `com.listenapp.listen`. Version `1.0.3+4` can be
+The Android application id is `com.listenapp.listen`. Version `1.0.4+5` can be
 installed over earlier test builds.

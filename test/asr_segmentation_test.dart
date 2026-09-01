@@ -6,7 +6,6 @@ void main() {
     final cues = buildTimedTranscriptCues(
       tokens: const [' Hello', ' world.', ' Next', ' sentence.'],
       timestamps: const [0.2, 0.8, 2.6, 3.2],
-      fallbackText: 'Hello world. Next sentence.',
       offsetMs: 10000,
       durationMs: 5000,
       paragraphOffset: 0,
@@ -19,26 +18,22 @@ void main() {
     expect(cues.last.startMs, 12600);
   });
 
-  test('fallback timing is weighted by sentence length', () {
+  test('missing model timestamps cannot produce estimated subtitle cues', () {
     final cues = buildTimedTranscriptCues(
       tokens: const [],
       timestamps: const [],
-      fallbackText: 'Short. This sentence contains several more words.',
       offsetMs: 0,
       durationMs: 8000,
       paragraphOffset: 0,
     );
 
-    expect(cues, hasLength(2));
-    expect(cues.first.endMs, lessThan(3000));
-    expect(cues.last.endMs, 8000);
+    expect(cues, isEmpty);
   });
 
   test('sentencepiece subwords are joined without artificial spaces', () {
     final cues = buildTimedTranscriptCues(
       tokens: const ['▁Art', 'ifi', 'cial', '▁intelligence', '.'],
       timestamps: const [0.1, 0.2, 0.3, 0.6, 0.9],
-      fallbackText: 'Artificial intelligence.',
       offsetMs: 0,
       durationMs: 1200,
       paragraphOffset: 0,
@@ -62,4 +57,40 @@ void main() {
 
     expect(healthy, greaterThan(repeated));
   });
+
+  test('malformed token times cannot be clamped into a plausible sentence', () {
+    for (final timestamps in <List<double>>[
+      [0.5],
+      [0.8, 0.2],
+      [-0.1, 0.4],
+      [0.2, 2.0],
+      [double.nan, 0.4],
+    ]) {
+      expect(
+        buildTimedTranscriptCues(
+          tokens: [' Hello', ' world.'],
+          timestamps: timestamps,
+          offsetMs: 0,
+          durationMs: 2000,
+          paragraphOffset: 0,
+        ),
+        isEmpty,
+      );
+    }
+  });
+
+  test(
+    'intro and unrecognized gaps are preserved on the full audio timeline',
+    () {
+      final cues = buildTimedTranscriptCues(
+        tokens: [' Main', ' content.'],
+        timestamps: [0.4, 1.0],
+        offsetMs: 65000,
+        durationMs: 2500,
+        paragraphOffset: 0,
+      );
+      expect(cues.single.startMs, 65400);
+      expect(cues.single.endMs, lessThanOrEqualTo(67500));
+    },
+  );
 }

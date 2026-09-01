@@ -2,6 +2,8 @@ import 'dart:async';
 
 import '../../library/domain/podcast.dart';
 
+const currentPhoneTranscriptSource = 'android-v6-parakeet-tdt-0.6b-v2-int8';
+
 class DeviceTranscriptionProgress {
   const DeviceTranscriptionProgress({
     required this.message,

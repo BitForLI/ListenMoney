@@ -12,20 +12,25 @@ import 'package:sherpa_onnx/sherpa_onnx.dart' as sherpa;
 import '../../library/domain/podcast.dart';
 import '../application/on_device_transcriber.dart';
 import 'asr_segmentation.dart';
+import 'transcript_audio_store.dart';
 
 class MobileOnDeviceTranscriber implements OnDeviceTranscriber {
-  MobileOnDeviceTranscriber({MethodChannel? audioDecoder})
-    : _audioDecoder =
-          audioDecoder ?? const MethodChannel('listen/audio_decoder');
+  MobileOnDeviceTranscriber({
+    MethodChannel? audioDecoder,
+    TranscriptAudioStore? audioStore,
+  }) : _audioDecoder =
+           audioDecoder ?? const MethodChannel('listen/audio_decoder'),
+       _audioStore = audioStore ?? TranscriptAudioStore();
 
   static const int _maximumAudioBytes = 500 * 1024 * 1024;
-  static const int _cacheVersion = 5;
+  static const int _cacheVersion = 6;
   static const String _vadFilename = 'silero_vad.onnx';
   static final Uri _vadUri = Uri.parse(
     'https://github.com/k2-fsa/sherpa-onnx/releases/download/'
     'asr-models/$_vadFilename',
   );
   final MethodChannel _audioDecoder;
+  final TranscriptAudioStore _audioStore;
 
   @override
   bool get isSupported => Platform.isAndroid;
@@ -39,7 +44,10 @@ class MobileOnDeviceTranscriber implements OnDeviceTranscriber {
           jsonDecode(await file.readAsString()) as Map<String, dynamic>;
       if (data['asr_cache_version'] != _cacheVersion) return null;
       if (data['asr_complete'] != true) return null;
-      return TranscriptDocument.fromJson(data);
+      final document = TranscriptDocument.fromJson(data);
+      final key = document.audioKey;
+      if (key == null || await _audioStore.resolve(key) == null) return null;
+      return document;
     } catch (_) {
       return null;
     }
@@ -74,6 +82,10 @@ class MobileOnDeviceTranscriber implements OnDeviceTranscriber {
       if (wavePaths.isEmpty) {
         throw const OnDeviceTranscriptionException('没有从节目中解码出可识别的音频');
       }
+      final audioKey = await _audioStore.retain(
+        audioFile,
+        episodeId: episode.id,
+      );
 
       final cues = <Map<String, dynamic>>[];
       await _recognize(
@@ -82,7 +94,7 @@ class MobileOnDeviceTranscriber implements OnDeviceTranscriber {
         wavePaths: wavePaths,
         onChunk: (chunkCues, chunkIndex, chunkCount) async {
           cues.addAll(chunkCues);
-          final document = _document(episode.id, spec.id, cues);
+          final document = _document(episode.id, spec.id, cues, audioKey);
           await _writeCache(document, complete: false);
           onPartial?.call(document);
           onProgress?.call(
@@ -100,7 +112,7 @@ class MobileOnDeviceTranscriber implements OnDeviceTranscriber {
       if (cues.isEmpty) {
         throw const OnDeviceTranscriptionException('手机没有识别到有效语音');
       }
-      final document = _document(episode.id, spec.id, cues);
+      final document = _document(episode.id, spec.id, cues, audioKey);
       await _writeCache(document, complete: true);
       onProgress?.call(
         const DeviceTranscriptionProgress(message: '手机离线字幕已完成', fraction: 1),
@@ -361,12 +373,14 @@ class MobileOnDeviceTranscriber implements OnDeviceTranscriber {
     int episodeId,
     String modelId,
     List<Map<String, dynamic>> cues,
+    String audioKey,
   ) {
     return TranscriptDocument.fromJson({
       'episode_id': episodeId,
       'language': 'en',
-      'source': 'android-v5-$modelId',
+      'source': 'android-v$_cacheVersion-$modelId',
       'segments': cues,
+      'audio_key': audioKey,
     });
   }
 
@@ -399,6 +413,7 @@ class MobileOnDeviceTranscriber implements OnDeviceTranscriber {
     'source': document.source,
     'target_language': document.targetLanguage,
     'translation_source': document.translationSource,
+    'audio_key': document.audioKey,
     'segments': document.segments
         .map(
           (segment) => {
@@ -661,16 +676,18 @@ _RecognitionPass _recognizeOnce(
     recognizer.decode(stream);
     final result = recognizer.getResult(stream);
     final durationMs = (samples.length * 1000 / sampleRate).round();
+    final cues = buildTimedTranscriptCues(
+      tokens: result.tokens,
+      timestamps: result.timestamps,
+      offsetMs: offsetMs,
+      durationMs: durationMs,
+      paragraphOffset: 0,
+    );
     return _RecognitionPass(
-      cues: buildTimedTranscriptCues(
-        tokens: result.tokens,
-        timestamps: result.timestamps,
-        fallbackText: result.text,
-        offsetMs: offsetMs,
-        durationMs: durationMs,
-        paragraphOffset: 0,
-      ),
-      quality: recognitionQuality(result.text, result.timestamps, durationMs),
+      cues: cues,
+      quality: cues.isEmpty
+          ? 0
+          : recognitionQuality(result.text, result.timestamps, durationMs),
     );
   } finally {
     stream.free();

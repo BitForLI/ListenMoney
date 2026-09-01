@@ -35,6 +35,7 @@ void main() {
         episodeId: episode.id,
         language: 'en',
         source: 'test',
+        audioKey: 'episode-1-123.mp3',
         segments: const [
           TranscriptSegment(
             index: 0,
@@ -72,6 +73,11 @@ void main() {
     );
     final translated = await restored.translateTranscript(episode.id);
     expect(translated.segments.single.translation, '中文：Hello');
+    expect(translated.audioKey, 'episode-1-123.mp3');
+    expect(
+      (await restored.importTranscript(episode.id)).audioKey,
+      'episode-1-123.mp3',
+    );
   });
 }
 

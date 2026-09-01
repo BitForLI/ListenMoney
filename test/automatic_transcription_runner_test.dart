@@ -1,13 +1,42 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:listen/features/library/domain/podcast.dart';
 import 'package:listen/features/player/application/automatic_transcription_runner.dart';
 import 'package:listen/features/player/application/on_device_transcriber.dart';
+import 'package:listen/features/player/data/transcript_audio_store.dart';
 
 import 'fake_podcast_repository.dart';
 
 void main() {
+  test('production queue does not skip an unbound old cache or imported transcript', () async {
+    final temporary = await Directory.systemTemp.createTemp(
+      'listen-runner-test-',
+    );
+    addTearDown(() => temporary.delete(recursive: true));
+    const podcast = Podcast(
+      id: 1,
+      title: 'One',
+      feedUrl: 'https://example.com/rss',
+      episodeCount: 1,
+    );
+    final repository = FakePodcastRepository(
+      podcasts: [podcast],
+      episodes: {
+        1: [_episode(1, 1)],
+      },
+      transcript: _transcript(1),
+    );
+    final transcriber = _RecordingTranscriber(cachedEpisodeIds: {1});
+    await AutomaticTranscriptionRunner(
+      repository,
+      transcriber,
+      audioStore: TranscriptAudioStore(directory: temporary),
+    ).run([podcast]);
+    expect(transcriber.episodeIds, [1]);
+  });
+
   test(
     'transcribes only the newest five episodes in descending order',
     () async {

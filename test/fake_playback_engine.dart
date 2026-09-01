@@ -23,21 +23,23 @@ class FakePlaybackEngine extends ChangeNotifier implements PlaybackEngine {
   String? loadedUrl;
   bool hasAudioSource = false;
   bool looping = false;
-  Duration? clipStart;
-  Duration? clipEnd;
+  int loadCount = 0;
+  int pauseCount = 0;
+  final List<Duration> seeks = [];
 
   @override
   Future<void> load(String audioUrl) async {
     loadedUrl = audioUrl;
+    loadCount += 1;
     hasAudioSource = true;
-    clipStart = null;
-    clipEnd = null;
+    position = Duration.zero;
     processingState = EngineProcessingState.ready;
     notifyListeners();
   }
 
   @override
   Future<void> pause() async {
+    pauseCount += 1;
     playing = false;
     notifyListeners();
   }
@@ -50,17 +52,17 @@ class FakePlaybackEngine extends ChangeNotifier implements PlaybackEngine {
 
   @override
   Future<void> seek(Duration value) async {
+    seeks.add(value);
     position = value;
+    if (processingState == EngineProcessingState.completed) {
+      processingState = EngineProcessingState.ready;
+    }
     notifyListeners();
   }
 
-  @override
-  Future<void> setClip({Duration? start, Duration? end}) async {
-    if (!hasAudioSource) {
-      throw StateError('Cannot set a clip before loading an audio source');
-    }
-    clipStart = start;
-    clipEnd = end;
+  void emitPosition(Duration value) {
+    position = value;
+    notifyListeners();
   }
 
   @override

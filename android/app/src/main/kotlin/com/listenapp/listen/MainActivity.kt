@@ -126,7 +126,9 @@ private class AndroidAudioDecoder(
                         } else {
                             AudioFormat.ENCODING_PCM_16BIT
                         }
-                        writer = WavChunkWriter(
+                        // A repeated format notification must not discard the
+                        // intro/already decoded chunks and restart ASR time at 0.
+                        writer = writer ?: WavChunkWriter(
                             directory = outputDirectory,
                             samplesPerChunk = TARGET_SAMPLE_RATE * chunkSeconds,
                         )

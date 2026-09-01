@@ -168,7 +168,7 @@ class _ActivePlayerState extends State<_ActivePlayer> {
         episodeId == null ||
         transcript.isLoading ||
         transcript.isTranscribing ||
-        transcript.document != null ||
+        transcript.hasSynchronizedTranscript ||
         _autoStartedEpisodeId == episodeId) {
       return;
     }
@@ -1090,6 +1090,21 @@ class _TranscriptBody extends StatelessWidget {
     if (document != null && document.segments.isNotEmpty) {
       return Column(
         children: [
+          if (controller.needsAlignment)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+              child: Row(
+                children: [
+                  const Expanded(child: Text('旧字幕尚未匹配当前音频，暂不自动跟随。')),
+                  TextButton(
+                    onPressed: controller.isTranscribing
+                        ? null
+                        : controller.transcribe,
+                    child: const Text('重新校准'),
+                  ),
+                ],
+              ),
+            ),
           if (controller.isTranscribing)
             _TranscriptionProgress(controller: controller),
           Expanded(child: _TranscriptList(controller: controller)),
@@ -1444,6 +1459,8 @@ class _TranscriptListState extends State<_TranscriptList> {
   final Map<int, GlobalKey> _segmentKeys = {};
   Timer? _resumeFollowingTimer;
   int? _lastActiveSegmentIndex;
+  int? _lastEpisodeId;
+  bool _lastCanFollow = false;
   bool _followingPaused = false;
 
   TranscriptController get controller => widget.controller;
@@ -1452,6 +1469,8 @@ class _TranscriptListState extends State<_TranscriptList> {
   void initState() {
     super.initState();
     _lastActiveSegmentIndex = controller.activeSegment?.index;
+    _lastEpisodeId = controller.document?.episodeId;
+    _lastCanFollow = controller.canFollowPlayback;
     _scheduleActiveSegmentScroll();
   }
 
@@ -1459,9 +1478,28 @@ class _TranscriptListState extends State<_TranscriptList> {
   void didUpdateWidget(covariant _TranscriptList oldWidget) {
     super.didUpdateWidget(oldWidget);
     final activeIndex = controller.activeSegment?.index;
-    if (activeIndex == _lastActiveSegmentIndex) return;
+    final episodeId = controller.document?.episodeId;
+    final canFollow = controller.canFollowPlayback;
+    if (activeIndex == _lastActiveSegmentIndex &&
+        episodeId == _lastEpisodeId &&
+        canFollow == _lastCanFollow) {
+      return;
+    }
+    if (episodeId != _lastEpisodeId) _segmentKeys.clear();
     _lastActiveSegmentIndex = activeIndex;
-    if (!_followingPaused) _scheduleActiveSegmentScroll();
+    _lastEpisodeId = episodeId;
+    _lastCanFollow = canFollow;
+    if (!canFollow) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted &&
+            !controller.canFollowPlayback &&
+            _scrollController.hasClients) {
+          _scrollController.jumpTo(_scrollController.offset);
+        }
+      });
+    } else if (!_followingPaused) {
+      _scheduleActiveSegmentScroll();
+    }
   }
 
   @override
@@ -1478,6 +1516,8 @@ class _TranscriptListState extends State<_TranscriptList> {
   }
 
   Future<void> _scrollToActiveSegment() async {
+    if (!controller.canFollowPlayback) return;
+    final episodeId = controller.document?.episodeId;
     final active = controller.activeSegment;
     if (active == null || !_scrollController.hasClients) return;
     final activeContext = _segmentKeys[active.index]?.currentContext;
@@ -1506,7 +1546,13 @@ class _TranscriptListState extends State<_TranscriptList> {
       duration: const Duration(milliseconds: 360),
       curve: Curves.easeOutCubic,
     );
-    if (!mounted || _followingPaused) return;
+    if (!mounted ||
+        _followingPaused ||
+        !controller.canFollowPlayback ||
+        controller.activeSegment?.index != active.index ||
+        controller.document?.episodeId != episodeId) {
+      return;
+    }
     final correctedContext = _segmentKeys[active.index]?.currentContext;
     if (correctedContext != null && correctedContext.mounted) {
       await Scrollable.ensureVisible(
@@ -1604,7 +1650,9 @@ class _TranscriptListState extends State<_TranscriptList> {
                       ],
                     ],
                   ),
-            onTap: () => controller.select(segment),
+            onTap: controller.hasSynchronizedTranscript
+                ? () => controller.select(segment)
+                : null,
           );
           return KeyedSubtree(
             key: _segmentKeys.putIfAbsent(segment.index, GlobalKey.new),

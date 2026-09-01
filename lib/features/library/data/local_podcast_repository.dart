@@ -383,6 +383,12 @@ class LocalPodcastRepository implements PodcastRepository {
     return document;
   }
 
+  /// Playback lookup only: do not fetch RSS or import a remote transcript.
+  Future<TranscriptDocument?> readCachedTranscript(int episodeId) async {
+    await _ensureLoaded();
+    return _transcripts[episodeId];
+  }
+
   @override
   Future<TranscriptDocument> translateTranscript(
     int episodeId, {
@@ -410,6 +416,7 @@ class LocalPodcastRepository implements PodcastRepository {
       source: original.source,
       targetLanguage: targetLanguage,
       translationSource: 'google-mlkit-on-device',
+      audioKey: original.audioKey,
       segments: [
         for (var index = 0; index < original.segments.length; index += 1)
           TranscriptSegment(
