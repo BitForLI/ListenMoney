@@ -636,10 +636,8 @@ class _EpisodeListScreenState extends State<EpisodeListScreen> {
                       episode: episode,
                       metadata: _episodeMetadata(episode),
                       artworkUrl: widget.podcast.artworkUrl,
-                      onPlay: () {
-                        Navigator.pop(context);
-                        widget.onPlayEpisode?.call(widget.podcast, episode);
-                      },
+                      onPlay: () =>
+                          widget.onPlayEpisode?.call(widget.podcast, episode),
                     );
                   },
                 ),
@@ -773,7 +771,7 @@ class _EpisodeRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 5),
                   Text(
-                    '▶  $metadata',
+                    metadata,
                     style: Theme.of(context).textTheme.bodySmall
                         ?.copyWith(color: colors.onSurfaceVariant),
                   ),

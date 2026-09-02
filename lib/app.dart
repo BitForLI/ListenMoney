@@ -65,6 +65,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final AutomaticTranscriptionRunner _automaticTranscriptionRunner;
   late final bool _ownsPlaybackController;
   final PageController _mainPageController = PageController();
+  final GlobalKey _miniPlayerKey = GlobalKey();
   Timer? _playbackSaveTimer;
 
   int _selectedIndex = _progressIndex;
@@ -226,16 +227,30 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   }
 
   Future<void> _playEpisode(Podcast podcast, Episode episode) async {
-    await _playbackController.loadEpisode(
+    final loading = _playbackController.loadEpisode(
       episode,
       fromPodcast: podcast.title,
       fromArtworkUrl: podcast.artworkUrl,
     );
-    if (mounted) await _openPlayerOverlay();
+    if (mounted) unawaited(_openPlayerOverlay());
+    await loading;
+    if (_playbackController.episode?.id == episode.id &&
+        _playbackController.errorMessage == null &&
+        !_playbackController.playing) {
+      await _playbackController.togglePlayPause();
+    }
   }
 
   void _startPlayerSwipe(PointerDownEvent event) {
     if (_selectedIndex == _transcriptIndex) {
+      _playerSwipeStart = null;
+      return;
+    }
+    final renderObject = _miniPlayerKey.currentContext?.findRenderObject();
+    if (renderObject is! RenderBox ||
+        !(renderObject.localToGlobal(Offset.zero) & renderObject.size).contains(
+          event.position,
+        )) {
       _playerSwipeStart = null;
       return;
     }
@@ -369,7 +384,10 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (showMiniPlayer)
-                        _MiniPlayer(controller: _playbackController),
+                        _MiniPlayer(
+                          key: _miniPlayerKey,
+                          controller: _playbackController,
+                        ),
                       if (showMiniPlayer)
                         Divider(
                           height: 1,
@@ -397,7 +415,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 }
 
 class _MiniPlayer extends StatelessWidget {
-  const _MiniPlayer({required this.controller});
+  const _MiniPlayer({super.key, required this.controller});
 
   final PlaybackController controller;
 

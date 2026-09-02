@@ -119,7 +119,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Library'));
     await tester.pumpAndSettle();
     await tester.drag(
-      find.byKey(const ValueKey('player_swipe_launcher')),
+      find.byKey(const ValueKey('mini_player')),
       const Offset(0, -180),
     );
     await tester.pumpAndSettle();
@@ -163,6 +163,13 @@ void main() {
 
     await tester.drag(
       find.byKey(const ValueKey('player_swipe_launcher')),
+      const Offset(0, -180),
+    );
+    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('player_overlay')), findsNothing);
+
+    await tester.drag(
+      find.byKey(const ValueKey('mini_player')),
       const Offset(0, -180),
     );
     await tester.pump();
@@ -237,7 +244,7 @@ void main() {
     Future<void> openAndReturnTo(Finder origin) async {
       expect(origin, findsOneWidget);
       await tester.drag(
-        find.byKey(const ValueKey('player_swipe_launcher')),
+        find.byKey(const ValueKey('mini_player')),
         const Offset(0, -180),
       );
       await tester.pumpAndSettle();
@@ -257,7 +264,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.byKey(const ValueKey('transcript_only_page')), findsOneWidget);
     await tester.drag(
-      find.byKey(const ValueKey('player_swipe_launcher')),
+      find.byKey(const ValueKey('mini_player')),
       const Offset(0, -180),
     );
     await tester.pumpAndSettle();
@@ -267,7 +274,7 @@ void main() {
     await tester.tap(find.bySemanticsLabel('Library'));
     await tester.pumpAndSettle();
     await tester.drag(
-      find.byKey(const ValueKey('player_swipe_launcher')),
+      find.byKey(const ValueKey('mini_player')),
       const Offset(0, -180),
     );
     await tester.pumpAndSettle();
@@ -364,6 +371,53 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('测试播客'), findsOneWidget);
+  });
+
+  testWidgets('tapping an episode opens the player and starts playback', (
+    tester,
+  ) async {
+    const podcast = Podcast(
+      id: 7,
+      title: 'Test Show',
+      feedUrl: 'https://example.com/show.xml',
+      episodeCount: 1,
+    );
+    const episode = Episode(
+      id: 70,
+      podcastId: 7,
+      guid: 'direct-play',
+      title: 'Direct Play Episode',
+      audioUrl: 'https://example.com/direct.mp3',
+      durationSeconds: 1200,
+    );
+    final engine = FakePlaybackEngine();
+    final playback = PlaybackController(engine);
+    addTearDown(playback.dispose);
+    await tester.pumpWidget(
+      ListenApp(
+        podcastRepository: FakePodcastRepository(
+          podcasts: const [podcast],
+          episodes: const {
+            7: [episode],
+          },
+        ),
+        playbackController: playback,
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.bySemanticsLabel('Library'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Test Show'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('▶'), findsNothing);
+
+    await tester.tap(find.text('Direct Play Episode'));
+    await tester.pumpAndSettle();
+
+    expect(find.byKey(const ValueKey('player_overlay')), findsOneWidget);
+    expect(playback.episode?.id, episode.id);
+    expect(playback.playing, isTrue);
   });
 
   testWidgets('shows the three publisher-transcript recommendations', (
