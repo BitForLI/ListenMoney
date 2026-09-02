@@ -13,6 +13,57 @@ import 'fake_playback_engine.dart';
 import 'fake_podcast_repository.dart';
 
 void main() {
+  testWidgets(
+    'caption progress uses episode duration when audio reports zero',
+    (tester) async {
+      const document = TranscriptDocument(
+        episodeId: 8,
+        language: 'en',
+        source: 'rss',
+        segments: [
+          TranscriptSegment(
+            index: 0,
+            startMs: 0,
+            endMs: 1000,
+            text: 'Duration fallback.',
+            paragraphIndex: 0,
+          ),
+        ],
+      );
+      final engine = FakePlaybackEngine()..duration = Duration.zero;
+      final playback = PlaybackController(engine);
+      final repository = FakePodcastRepository(transcript: document);
+      final transcript = TranscriptController(repository, playback);
+      addTearDown(transcript.dispose);
+      addTearDown(playback.dispose);
+      await playback.loadEpisode(
+        const Episode(
+          id: 8,
+          podcastId: 1,
+          guid: 'duration-fallback',
+          title: 'Duration fallback',
+          audioUrl: 'https://example.com/duration.mp3',
+          durationSeconds: 1420,
+        ),
+      );
+      await transcript.load(8);
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: PlayerScreen(
+            controller: playback,
+            transcriptController: transcript,
+            podcastRepository: repository,
+            transcriptOnly: true,
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      expect(find.text('23:40'), findsOneWidget);
+    },
+  );
+
   testWidgets('player mode and transcript controls drive semantic navigation', (
     tester,
   ) async {

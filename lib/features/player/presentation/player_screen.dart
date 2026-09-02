@@ -274,7 +274,10 @@ class _NowPlayingPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final episode = controller.episode!;
-    final duration = controller.duration;
+    final duration = _displayDuration(
+      controller,
+      transcriptController.document,
+    );
     final maximum = _maximumMilliseconds(duration);
     final position = _positionMilliseconds(controller.position, maximum);
     final remaining = duration > controller.position
@@ -1193,7 +1196,10 @@ class _ReadingControls extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final duration = controller.duration;
+    final duration = _displayDuration(
+      controller,
+      transcriptController.document,
+    );
     final maximum = _maximumMilliseconds(duration);
     final position = _positionMilliseconds(controller.position, maximum);
     return Padding(
@@ -1687,6 +1693,19 @@ String _repeatModeLabel(PlaybackRepeatMode mode) => switch (mode) {
 
 double _maximumMilliseconds(Duration duration) {
   return duration.inMilliseconds > 0 ? duration.inMilliseconds.toDouble() : 1.0;
+}
+
+Duration _displayDuration(
+  PlaybackController controller,
+  TranscriptDocument? transcript,
+) {
+  if (controller.duration > Duration.zero) return controller.duration;
+  final episodeSeconds = controller.episode?.durationSeconds ?? 0;
+  if (episodeSeconds > 0) return Duration(seconds: episodeSeconds);
+  final segments = transcript?.segments;
+  return segments == null || segments.isEmpty
+      ? Duration.zero
+      : Duration(milliseconds: segments.last.endMs);
 }
 
 double _positionMilliseconds(Duration position, double maximum) {

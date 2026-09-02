@@ -51,6 +51,15 @@ void main() {
       seconds: 30,
       listenedAt: DateTime(2026, 8, 28),
     );
+    await repository.savePlaybackSession(
+      PlaybackSession(
+        episode: episode,
+        positionMs: 123456,
+        speed: 1.25,
+        podcastTitle: podcast.title,
+        artworkUrl: podcast.artworkUrl,
+      ),
+    );
 
     final restored = LocalPodcastRepository(
       storageFile: storage,
@@ -71,6 +80,11 @@ void main() {
       (await restored.listeningStats(DateTime(2026, 8, 28))).todaySeconds,
       30,
     );
+    final session = await restored.loadPlaybackSession();
+    expect(session?.episode.id, episode.id);
+    expect(session?.positionMs, 123456);
+    expect(session?.speed, 1.25);
+    expect(session?.podcastTitle, podcast.title);
     final translated = await restored.translateTranscript(episode.id);
     expect(translated.segments.single.translation, '中文：Hello');
     expect(translated.audioKey, 'episode-1-123.mp3');

@@ -13,6 +13,7 @@ The released app does not need FastAPI, Cloudflare, a Mac, USB debugging, or
 - RSS subscriptions and episode updates are fetched directly by the phone.
 - Podcasts, transcripts, translations, and listening history are stored in the
   app's private local data directory.
+- The last episode, playback position, and speed are restored after reopening.
 - Apple Podcasts search is called directly from the phone.
 - NVIDIA Parakeet transcription runs on supported Android devices.
 - Google ML Kit translation models are downloaded once, then run on device.

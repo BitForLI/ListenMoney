@@ -25,6 +25,24 @@ void main() {
     expect(controller.podcastTitle, 'Test Podcast');
   });
 
+  test('restores position and speed without autoplaying', () async {
+    final engine = FakePlaybackEngine();
+    final controller = PlaybackController(engine);
+    addTearDown(controller.dispose);
+
+    await controller.restoreEpisode(
+      episode,
+      savedPosition: const Duration(seconds: 123),
+      savedSpeed: 1.25,
+      fromPodcast: 'Test Podcast',
+    );
+
+    expect(engine.position, const Duration(seconds: 123));
+    expect(engine.speed, 1.25);
+    expect(engine.playing, isFalse);
+    expect(controller.podcastTitle, 'Test Podcast');
+  });
+
   test('loops an exact sentence range', () async {
     final engine = FakePlaybackEngine();
     final controller = PlaybackController(engine);

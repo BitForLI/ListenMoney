@@ -143,6 +143,29 @@ class PlaybackController extends ChangeNotifier {
     }
   }
 
+  Future<void> restoreEpisode(
+    Episode value, {
+    required Duration savedPosition,
+    double savedSpeed = 1,
+    String? fromPodcast,
+    String? fromArtworkUrl,
+  }) async {
+    await loadEpisode(
+      value,
+      fromPodcast: fromPodcast,
+      fromArtworkUrl: fromArtworkUrl,
+    );
+    if (errorMessage != null) return;
+    final maximum = duration;
+    final resumeAt =
+        maximum > Duration.zero &&
+            savedPosition >= maximum - const Duration(seconds: 2)
+        ? Duration.zero
+        : savedPosition;
+    if (resumeAt > Duration.zero) await seek(resumeAt);
+    if (savedSpeed != 1) await setSpeed(savedSpeed);
+  }
+
   Future<void> useTranscriptAudio(int episodeId, String uri) =>
       _enqueue(() async {
         if (episode?.id != episodeId || _loadedAudioUrl == uri) return;

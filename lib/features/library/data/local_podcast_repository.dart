@@ -52,6 +52,7 @@ class LocalPodcastRepository implements PodcastRepository {
   final Map<int, TranscriptDocument> _transcripts = {};
   final Map<int, Map<String, String?>> _feedCache = {};
   final Map<String, int> _listeningDays = {};
+  PlaybackSession? _playbackSession;
 
   Future<void> _ensureLoaded() => _loading ??= _load();
 
@@ -103,6 +104,10 @@ class LocalPodcastRepository implements PodcastRepository {
             (key, value) => MapEntry(key, value as int),
           ),
         );
+      final playbackSession = value['playback_session'];
+      _playbackSession = playbackSession is Map<String, dynamic>
+          ? PlaybackSession.fromJson(playbackSession)
+          : null;
       for (final episodes in _episodes.values) {
         episodes.sort(_newestFirst);
       }
@@ -581,6 +586,17 @@ class LocalPodcastRepository implements PodcastRepository {
     return _writeQueue;
   }
 
+  Future<PlaybackSession?> loadPlaybackSession() async {
+    await _ensureLoaded();
+    return _playbackSession;
+  }
+
+  Future<void> savePlaybackSession(PlaybackSession session) async {
+    await _ensureLoaded();
+    _playbackSession = session;
+    await _save();
+  }
+
   Future<void> _writeNow() async {
     final file = _storageFile!;
     await file.parent.create(recursive: true);
@@ -601,6 +617,7 @@ class LocalPodcastRepository implements PodcastRepository {
         (key, value) => MapEntry(key.toString(), value),
       ),
       'listening_days': _listeningDays,
+      'playback_session': _playbackSession?.toJson(),
     };
     final temporary = File('${file.path}.tmp');
     await temporary.writeAsString(jsonEncode(payload), flush: true);
@@ -621,4 +638,38 @@ class LocalPodcastRepository implements PodcastRepository {
     final dateOrder = rightDate.compareTo(leftDate);
     return dateOrder != 0 ? dateOrder : right.id.compareTo(left.id);
   }
+}
+
+class PlaybackSession {
+  const PlaybackSession({
+    required this.episode,
+    required this.positionMs,
+    required this.speed,
+    this.podcastTitle,
+    this.artworkUrl,
+  });
+
+  factory PlaybackSession.fromJson(Map<String, dynamic> json) {
+    return PlaybackSession(
+      episode: Episode.fromJson(json['episode'] as Map<String, dynamic>),
+      positionMs: json['position_ms'] as int? ?? 0,
+      speed: (json['speed'] as num?)?.toDouble() ?? 1,
+      podcastTitle: json['podcast_title'] as String?,
+      artworkUrl: json['artwork_url'] as String?,
+    );
+  }
+
+  final Episode episode;
+  final int positionMs;
+  final double speed;
+  final String? podcastTitle;
+  final String? artworkUrl;
+
+  Map<String, dynamic> toJson() => {
+    'episode': episode.toJson(),
+    'position_ms': positionMs,
+    'speed': speed,
+    'podcast_title': podcastTitle,
+    'artwork_url': artworkUrl,
+  };
 }

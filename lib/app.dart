@@ -65,10 +65,12 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
   late final AutomaticTranscriptionRunner _automaticTranscriptionRunner;
   late final bool _ownsPlaybackController;
   final PageController _mainPageController = PageController();
+  Timer? _playbackSaveTimer;
 
   int _selectedIndex = _progressIndex;
   Offset? _playerSwipeStart;
   bool _playerRouteOpening = false;
+  bool _restoringPlaybackSession = false;
 
   @override
   void initState() {
@@ -110,6 +112,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       _podcastRepository,
       _playbackController,
     );
+    _playbackController.addListener(_schedulePlaybackSessionSave);
     _screens = [
       ProgressScreen(controller: _listeningController),
       LibraryScreen(
@@ -130,6 +133,7 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         onClose: () => _selectMainPage(_libraryIndex),
       ),
     ];
+    unawaited(_restorePlaybackSession());
   }
 
   @override
@@ -138,18 +142,70 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         state == AppLifecycleState.detached ||
         state == AppLifecycleState.hidden) {
       unawaited(_listeningController.flush());
+      unawaited(_savePlaybackSession());
     }
   }
 
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _playbackSaveTimer?.cancel();
+    _playbackController.removeListener(_schedulePlaybackSessionSave);
+    unawaited(_savePlaybackSession());
     unawaited(_listeningController.flush());
     _listeningController.dispose();
     _transcriptController.dispose();
     _mainPageController.dispose();
     if (_ownsPlaybackController) _playbackController.dispose();
     super.dispose();
+  }
+
+  Future<void> _restorePlaybackSession() async {
+    final repository = _podcastRepository;
+    if (repository is! LocalPodcastRepository ||
+        _playbackController.episode != null) {
+      return;
+    }
+    final session = await repository.loadPlaybackSession();
+    if (session == null || !mounted) return;
+    _restoringPlaybackSession = true;
+    try {
+      await _playbackController.restoreEpisode(
+        session.episode,
+        savedPosition: Duration(milliseconds: session.positionMs),
+        savedSpeed: session.speed,
+        fromPodcast: session.podcastTitle,
+        fromArtworkUrl: session.artworkUrl,
+      );
+    } finally {
+      _restoringPlaybackSession = false;
+    }
+  }
+
+  void _schedulePlaybackSessionSave() {
+    if (_restoringPlaybackSession || _playbackController.episode == null) {
+      return;
+    }
+    if (_playbackSaveTimer?.isActive == true) return;
+    _playbackSaveTimer = Timer(
+      const Duration(seconds: 2),
+      () => unawaited(_savePlaybackSession()),
+    );
+  }
+
+  Future<void> _savePlaybackSession() async {
+    final repository = _podcastRepository;
+    final episode = _playbackController.episode;
+    if (repository is! LocalPodcastRepository || episode == null) return;
+    await repository.savePlaybackSession(
+      PlaybackSession(
+        episode: episode,
+        positionMs: _playbackController.position.inMilliseconds,
+        speed: _playbackController.speed,
+        podcastTitle: _playbackController.podcastTitle,
+        artworkUrl: _playbackController.artworkUrl,
+      ),
+    );
   }
 
   void _selectMainPage(int index) {
