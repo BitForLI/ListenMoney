@@ -60,5 +60,5 @@ cd backend && .venv/bin/python -m pytest tests -q
 /Users/x/develop/flutter/bin/flutter build apk --release
 ```
 
-The Android application id is `com.listenapp.listen`. Version `1.0.4+5` can be
+The Android application id is `com.listenapp.listen`. Version `1.0.5+6` can be
 installed over earlier test builds.
