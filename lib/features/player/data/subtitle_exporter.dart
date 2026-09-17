@@ -43,7 +43,7 @@ class SubtitleExporter {
         .replaceAll(RegExp(r'[\\/:*?"<>|\u0000-\u001F]'), ' ')
         .replaceAll(RegExp(r'\s+'), ' ')
         .trim();
-    final fallback = sanitized.isEmpty ? 'Listen 字幕' : sanitized;
+    final fallback = sanitized.isEmpty ? 'PodRepeat Transcript' : sanitized;
     return fallback.length <= 80 ? fallback : fallback.substring(0, 80).trim();
   }
 }

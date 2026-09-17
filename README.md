@@ -1,18 +1,43 @@
-# Listen
+# PodRepeat
 
-Listen is a local-first podcast player for people learning English. It combines ordinary RSS playback with repeat controls, time-aligned transcripts, English-to-Chinese translation, and listening statistics.
+PodRepeat is a local-first podcast player for people learning English. It combines ordinary RSS playback with repeat controls, time-aligned transcripts, English-to-Chinese translation, and listening statistics.
 
 ## Highlights
 
 - Subscribe to up to ten RSS feeds and search Apple Podcasts.
 - Repeat a sentence, paragraph, or whole episode without switching audio sources.
 - Generate English transcripts on supported Android devices with NVIDIA Parakeet.
-- Translate transcripts on-device with Google ML Kit.
+- Translate transcripts on-device with Google ML Kit on Android and iOS, after the required language models are downloaded.
 - Import Podcasting 2.0 transcripts in VTT, SRT, or JSON format.
 - Restore the last episode, playback position, and speed after restarting.
-- Keep podcasts, transcripts, translations, and history in the app's private storage.
+- Keep subscriptions, episode metadata, transcripts, translations, and history in the app's private storage.
+- Export transcript text and available translations as a TXT file.
 
 The mobile app talks directly to RSS and podcast services. The older FastAPI implementation remains under `backend/` as a tested reference, but it is not required at runtime.
+
+## Implementation references
+
+The [playback controller](lib/features/player/application/playback_controller.dart)
+loops sentence and paragraph ranges on the original episode timeline rather
+than loading separate clips. The [transcript controller](lib/features/player/application/transcript_controller.dart)
+binds generated subtitles to [retained audio](lib/features/player/data/transcript_audio_store.dart)
+before enabling synchronized navigation. [Playback tests](test/playback_controller_test.dart)
+and [audio-binding tests](test/transcript_audio_store_test.dart) cover those boundaries.
+
+[Android transcription](lib/features/player/data/mobile_on_device_transcriber.dart)
+uses sherpa-onnx with Parakeet and Silero voice-activity detection in an isolate,
+publishing partial subtitles as audio chunks complete. The
+[automatic runner](lib/features/player/application/automatic_transcription_runner.dart)
+processes the newest five episodes and continues after individual failures.
+Models and episode audio require network downloads before local recognition.
+
+The [local repository](lib/features/library/data/local_podcast_repository.dart)
+persists app state and reads RSS directly; [transcript parsing](lib/features/player/data/local_transcript.dart)
+supports VTT, SRT, and JSON import. [ML Kit translation](lib/features/player/data/mobile_transcript_translator.dart)
+and [TXT export](lib/features/player/data/subtitle_exporter.dart) are separate
+paths. Imported transcripts are readable, but the current synchronized-player
+path requires a transcript bound to its retained recording. These are
+implementation and fixture-test claims, not measured speech-recognition accuracy.
 
 ## Run
 
@@ -38,4 +63,6 @@ python -m pytest tests -q
 flutter build apk --release
 ```
 
-The Android application ID is `com.listenapp.listen`.
+The display name is PodRepeat. The existing Dart package name `listen`, Android
+application ID `com.listenapp.listen`, and GitHub repository name `ListenMoney`
+are retained so existing imports, installations, and links remain compatible.

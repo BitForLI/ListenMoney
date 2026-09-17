@@ -42,6 +42,6 @@ void main() {
       SubtitleExporter.safeFileName('AEE 1: Hello / Goodbye?'),
       'AEE 1 Hello Goodbye',
     );
-    expect(SubtitleExporter.safeFileName('  '), 'Listen 字幕');
+    expect(SubtitleExporter.safeFileName('  '), 'PodRepeat Transcript');
   });
 }
