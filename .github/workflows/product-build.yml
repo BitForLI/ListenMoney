@@ -1,0 +1,65 @@
+name: Verify and build product
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  verify-and-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Show tool versions
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Check formatting
+        run: dart format --output=none --set-exit-if-changed lib test
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Render product screenshots
+        run: >-
+          flutter test --update-goldens
+          --dart-define=GENERATE_SHOWCASE=true
+          test/showcase_test.dart
+
+      - name: Build Android APK
+        run: flutter build apk --release
+
+      - name: Upload screenshots
+        uses: actions/upload-artifact@v4
+        with:
+          name: podrepeat-screenshots
+          path: docs/screenshots/*.png
+          if-no-files-found: error
+
+      - name: Upload Android APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: podrepeat-android
+          path: build/app/outputs/flutter-apk/app-release.apk
+          if-no-files-found: error
+
