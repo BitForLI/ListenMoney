@@ -1,4 +1,4 @@
-# ListenMoney — Podcast Language Learning
+# ListenMoney — Language-Learning Podcast App
 
 ListenMoney is a local-first podcast player for learners who want to study a few favourite shows carefully instead of constantly discovering new content. The installed app is currently named **PodRepeat**.
 
@@ -76,5 +76,5 @@ flutter build apk --release
 ```
 
 The display name is PodRepeat. The existing Dart package name `listen`, Android
-application ID `com.listenapp.listen`, and GitHub repository name `ListenMoney`
+application ID `com.listenapp.listen`, and previous GitHub repository name `ListenMoney`
 are retained so existing imports, installations, and links remain compatible.
