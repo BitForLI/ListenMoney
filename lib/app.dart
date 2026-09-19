@@ -254,7 +254,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
 
   Future<void> _openReviewSentence(ReviewSentence sentence) async {
     try {
-      final episodes = await _podcastRepository.listEpisodes(sentence.podcastId);
+      final episodes = await _podcastRepository.listEpisodes(
+        sentence.podcastId,
+      );
       final episode = episodes
           .where((item) => item.id == sentence.episodeId)
           .firstOrNull;
@@ -270,8 +272,9 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
           fromArtworkUrl: podcast?.artworkUrl,
         );
       }
-      if (_playbackController.errorMessage != null) {
-        throw StateError(_playbackController.errorMessage);
+      final playbackError = _playbackController.errorMessage;
+      if (playbackError != null) {
+        throw StateError(playbackError);
       }
       await _playbackController.seek(Duration(milliseconds: sentence.startMs));
       if (!_playbackController.playing) {
@@ -280,9 +283,8 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
       if (mounted) unawaited(_openPlayerOverlay());
     } catch (error) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('无法播放复习句子：$error')),
-        );
+        ScaffoldMessenger.of(context)
+            .showSnackBar(SnackBar(content: Text('无法播放复习句子：$error')));
       }
     }
   }

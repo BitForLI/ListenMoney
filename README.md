@@ -14,6 +14,14 @@ PodRepeat is a local-first podcast player for learners who want to study a few f
 
 The interface and learning flow are intentionally designed around repeated listening rather than passive playback.
 
+## See it working
+
+| Podcast library | Repeated-sentence review | Timestamped transcript |
+| --- | --- | --- |
+| <img src="docs/screenshots/library.png" alt="PodRepeat podcast library" width="260"> | <img src="docs/screenshots/review.png" alt="PodRepeat repeated-sentence review list" width="260"> | <img src="docs/screenshots/transcript.png" alt="PodRepeat timestamped bilingual transcript" width="260"> |
+
+[Download the latest Android APK](https://github.com/BitForLI/language-learning-podcast-app/releases/latest/download/podrepeat-android.apk)
+
 ## Highlights
 
 - Subscribe to up to ten RSS feeds and search Apple Podcasts.
