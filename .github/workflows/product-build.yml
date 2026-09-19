@@ -83,6 +83,7 @@ jobs:
       - name: Publish Android release
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: >-
           gh release create "$GITHUB_REF_NAME" release/podrepeat-android.apk
           --generate-notes --title "PodRepeat $GITHUB_REF_NAME"
