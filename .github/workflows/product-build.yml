@@ -23,7 +23,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          channel: stable
+          flutter-version: "3.47.5"
           cache: true
 
       - name: Show tool versions
@@ -47,10 +47,23 @@ jobs:
           --dart-define=GENERATE_SHOWCASE=true
           test/showcase_test.dart
 
+      - name: Restore Android signing key
+        if: github.event_name != 'pull_request'
+        env:
+          PODREPEAT_KEYSTORE_BASE64: ${{ secrets.PODREPEAT_KEYSTORE_BASE64 }}
+        run: |
+          test -n "$PODREPEAT_KEYSTORE_BASE64"
+          printf '%s' "$PODREPEAT_KEYSTORE_BASE64" | base64 --decode > android/app/podrepeat-release.p12
+
       - name: Build Android APK
+        if: github.event_name != 'pull_request'
+        env:
+          PODREPEAT_KEYSTORE_FILE: ${{ github.workspace }}/android/app/podrepeat-release.p12
+          PODREPEAT_SIGNING_PASSWORD: ${{ secrets.PODREPEAT_SIGNING_PASSWORD }}
         run: flutter build apk --release
 
       - name: Name the downloadable APK
+        if: github.event_name != 'pull_request'
         run: cp build/app/outputs/flutter-apk/app-release.apk podrepeat-android.apk
 
       - name: Upload screenshots
@@ -61,6 +74,7 @@ jobs:
           if-no-files-found: error
 
       - name: Upload Android APK
+        if: github.event_name != 'pull_request'
         uses: actions/upload-artifact@v4
         with:
           name: podrepeat-android

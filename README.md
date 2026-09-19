@@ -88,6 +88,17 @@ python -m pytest tests -q
 flutter build apk --release
 ```
 
+Release builds require the private `PODREPEAT_KEYSTORE_FILE` and
+`PODREPEAT_SIGNING_PASSWORD` environment variables. GitHub Actions restores
+the keystore from encrypted repository secrets before building. The keystore
+and password must never be committed to this repository.
+
+Starting with v1.0.7, release APKs use one persistent signing certificate so
+future versions can update each other. Earlier APKs were signed with temporary
+debug certificates and cannot be upgraded in place to v1.0.7. If you have an
+earlier installation with local data you need to keep, do not uninstall it:
+the app does not yet provide a full-data export or migration path.
+
 The existing Dart package name `listen`, Android application ID
 `com.listenapp.listen`, and local storage filename are retained so existing
 imports and installations remain compatible.

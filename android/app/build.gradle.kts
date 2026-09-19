@@ -4,6 +4,15 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+val releaseKeystoreFile = System.getenv("PODREPEAT_KEYSTORE_FILE")
+val releasePassword = System.getenv("PODREPEAT_SIGNING_PASSWORD")
+val releaseTaskRequested = gradle.startParameter.taskNames.any {
+    it.contains("Release", ignoreCase = true)
+}
+if (releaseTaskRequested && (releaseKeystoreFile.isNullOrBlank() || releasePassword.isNullOrBlank())) {
+    throw GradleException("Release signing is not configured. See the Android release section in README.md.")
+}
+
 android {
     namespace = "com.listenapp.listen"
     compileSdk = flutter.compileSdkVersion
@@ -29,11 +38,18 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        create("release") {
+            keyAlias = "podrepeat"
+            keyPassword = releasePassword
+            storeFile = releaseKeystoreFile?.let { file(it) }
+            storePassword = releasePassword
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = signingConfigs.getByName("release")
         }
     }
 }
