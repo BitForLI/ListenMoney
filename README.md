@@ -1,6 +1,18 @@
-# PodRepeat
+# ListenMoney — Podcast Language Learning
 
-PodRepeat is a local-first podcast player for people learning English. It combines ordinary RSS playback with repeat controls, time-aligned transcripts, English-to-Chinese translation, and listening statistics.
+ListenMoney is a local-first podcast player for learners who want to study a few favourite shows carefully instead of constantly discovering new content. The installed app is currently named **PodRepeat**.
+
+## Product at a glance
+
+| | |
+| --- | --- |
+| **Users** | English learners who study with podcasts |
+| **Problem** | Normal podcast apps make it difficult to find, replay, and understand one spoken sentence |
+| **Core experience** | Tap a transcript sentence, jump to its exact time, and repeat it until it becomes clear |
+| **Product choice** | A focused RSS library instead of an endless recommendation feed |
+| **Privacy model** | Playback, transcripts, translations, and history stay on the device during normal use |
+
+The name is a small reminder that language learning has a practical return: the language a learner studies today may help them earn money tomorrow. The interface and learning flow are intentionally designed around repeated listening rather than passive playback.
 
 ## Highlights
 
