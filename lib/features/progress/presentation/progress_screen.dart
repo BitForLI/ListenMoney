@@ -121,8 +121,8 @@ class ProgressScreen extends StatelessWidget {
                                 trailing: IconButton(
                                   tooltip: '从复习列表移除',
                                   icon: const Icon(Icons.check_rounded),
-                                  onPressed: () => controller
-                                      .removeReviewSentence(sentence),
+                                  onPressed: () =>
+                                      controller.removeReviewSentence(sentence),
                                 ),
                               ),
                           ],

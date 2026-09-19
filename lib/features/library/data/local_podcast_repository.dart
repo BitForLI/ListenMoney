@@ -415,13 +415,12 @@ class LocalPodcastRepository implements PodcastRepository {
   @override
   Future<List<ReviewSentence>> listReviewSentences() async {
     await _ensureLoaded();
-    return _reviewSentences.values.toList()
-      ..sort((left, right) {
-        final count = right.repeatCount.compareTo(left.repeatCount);
-        return count != 0
-            ? count
-            : right.lastRepeatedAt.compareTo(left.lastRepeatedAt);
-      });
+    return _reviewSentences.values.toList()..sort((left, right) {
+      final count = right.repeatCount.compareTo(left.repeatCount);
+      return count != 0
+          ? count
+          : right.lastRepeatedAt.compareTo(left.lastRepeatedAt);
+    });
   }
 
   @override

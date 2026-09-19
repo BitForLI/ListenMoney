@@ -145,13 +145,18 @@ class FakePodcastRepository implements PodcastRepository {
   }
 
   @override
-  Future<List<ReviewSentence>> listReviewSentences() async => [...reviewSentences];
+  Future<List<ReviewSentence>> listReviewSentences() async => [
+    ...reviewSentences,
+  ];
 
   @override
-  Future<ReviewSentence?> recordSentenceRepeat(int episodeId, int startMs) async {
-    final existing = reviewSentences.where(
-      (item) => item.episodeId == episodeId && item.startMs == startMs,
-    ).firstOrNull;
+  Future<ReviewSentence?> recordSentenceRepeat(
+    int episodeId,
+    int startMs,
+  ) async {
+    final existing = reviewSentences
+        .where((item) => item.episodeId == episodeId && item.startMs == startMs)
+        .firstOrNull;
     final updated = ReviewSentence(
       episodeId: episodeId,
       podcastId: 1,

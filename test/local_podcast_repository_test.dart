@@ -47,8 +47,14 @@ void main() {
         ],
       ),
     );
-    expect((await repository.recordSentenceRepeat(episode.id, 0))?.repeatCount, 1);
-    expect((await repository.recordSentenceRepeat(episode.id, 0))?.repeatCount, 2);
+    expect(
+      (await repository.recordSentenceRepeat(episode.id, 0))?.repeatCount,
+      1,
+    );
+    expect(
+      (await repository.recordSentenceRepeat(episode.id, 0))?.repeatCount,
+      2,
+    );
     await repository.recordListening(
       seconds: 30,
       listenedAt: DateTime(2026, 8, 28),

@@ -48,7 +48,8 @@ void main() {
     final repeats = <(int, int)>[];
     final controller = PlaybackController(
       engine,
-      onSentenceRepeat: (episodeId, startMs) => repeats.add((episodeId, startMs)),
+      onSentenceRepeat: (episodeId, startMs) =>
+          repeats.add((episodeId, startMs)),
     );
     addTearDown(controller.dispose);
     await controller.loadEpisode(episode);

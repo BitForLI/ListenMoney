@@ -77,7 +77,10 @@ class ListeningController extends ChangeNotifier {
   }
 
   Future<void> removeReviewSentence(ReviewSentence sentence) async {
-    await _repository.removeReviewSentence(sentence.episodeId, sentence.startMs);
+    await _repository.removeReviewSentence(
+      sentence.episodeId,
+      sentence.startMs,
+    );
     reviewSentences = await _repository.listReviewSentences();
     if (!_disposed) notifyListeners();
   }
