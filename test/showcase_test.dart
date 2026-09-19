@@ -30,9 +30,18 @@ void main() {
     if (flutterRoot == null) {
       throw StateError('FLUTTER_ROOT is required to render showcase icons.');
     }
-    final materialIconBytes = await File(
-      '$flutterRoot/bin/cache/artifacts/material_fonts/materialicons-regular.otf',
-    ).readAsBytes();
+    final materialFontDirectory = Directory(
+      '$flutterRoot/bin/cache/artifacts/material_fonts',
+    );
+    final materialIconFile = materialFontDirectory
+        .listSync()
+        .whereType<File>()
+        .firstWhere(
+          (file) => file.uri.pathSegments.last.toLowerCase().contains(
+            'materialicons',
+          ),
+        );
+    final materialIconBytes = await materialIconFile.readAsBytes();
     final materialIconLoader = FontLoader('MaterialIcons')
       ..addFont(Future.value(ByteData.sublistView(materialIconBytes)));
     await materialIconLoader.load();
