@@ -67,7 +67,9 @@ jobs:
         run: |
           apksigner="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
           test -n "$apksigner"
-          digest="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk | awk -F ': ' '/Signer #1 certificate SHA-256 digest/ {print $2}' | tr '[:upper:]' '[:lower:]')"
+          signature_info="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)"
+          printf '%s\n' "$signature_info"
+          digest="$(printf '%s\n' "$signature_info" | awk -F ': ' '/Signer #1 certificate SHA-256 digest/ {print $2}' | tr '[:upper:]' '[:lower:]')"
           test "$digest" = '20214d5296f4795b06db76bba6aae4a71108ee461f722e0cf569613ae6811072'
 
       - name: Name the downloadable APK
