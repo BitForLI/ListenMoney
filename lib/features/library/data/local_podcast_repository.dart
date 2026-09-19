@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../player/data/local_transcript.dart';
 import '../../player/data/mobile_transcript_translator.dart';
 import '../../progress/domain/listening_stats.dart';
+import '../../progress/domain/review_sentence.dart';
 import '../domain/podcast.dart';
 import 'local_feed.dart';
 import 'podcast_repository.dart';
@@ -52,6 +53,7 @@ class LocalPodcastRepository implements PodcastRepository {
   final Map<int, TranscriptDocument> _transcripts = {};
   final Map<int, Map<String, String?>> _feedCache = {};
   final Map<String, int> _listeningDays = {};
+  final Map<String, ReviewSentence> _reviewSentences = {};
   PlaybackSession? _playbackSession;
 
   Future<void> _ensureLoaded() => _loading ??= _load();
@@ -103,6 +105,19 @@ class LocalPodcastRepository implements PodcastRepository {
           (value['listening_days'] as Map<String, dynamic>? ?? const {}).map(
             (key, value) => MapEntry(key, value as int),
           ),
+        );
+      _reviewSentences
+        ..clear()
+        ..addEntries(
+          (value['review_sentences'] as List<dynamic>? ?? const []).map((item) {
+            final sentence = ReviewSentence.fromJson(
+              item as Map<String, dynamic>,
+            );
+            return MapEntry(
+              _reviewKey(sentence.episodeId, sentence.startMs),
+              sentence,
+            );
+          }),
         );
       final playbackSession = value['playback_session'];
       _playbackSession = playbackSession is Map<String, dynamic>
@@ -197,6 +212,9 @@ class LocalPodcastRepository implements PodcastRepository {
     final removed = _episodes.remove(podcastId) ?? const [];
     for (final episode in removed) {
       _transcripts.remove(episode.id);
+      _reviewSentences.removeWhere(
+        (key, sentence) => sentence.episodeId == episode.id,
+      );
     }
     _feedCache.remove(podcastId);
     await _save();
@@ -393,6 +411,57 @@ class LocalPodcastRepository implements PodcastRepository {
     await _ensureLoaded();
     return _transcripts[episodeId];
   }
+
+  @override
+  Future<List<ReviewSentence>> listReviewSentences() async {
+    await _ensureLoaded();
+    return _reviewSentences.values.toList()
+      ..sort((left, right) {
+        final count = right.repeatCount.compareTo(left.repeatCount);
+        return count != 0
+            ? count
+            : right.lastRepeatedAt.compareTo(left.lastRepeatedAt);
+      });
+  }
+
+  @override
+  Future<ReviewSentence?> recordSentenceRepeat(
+    int episodeId,
+    int startMs,
+  ) async {
+    await _ensureLoaded();
+    final episode = _episodeById(episodeId);
+    final transcript = _transcripts[episodeId];
+    if (episode == null || transcript == null) return null;
+    final segment = transcript.segments
+        .where((item) => item.startMs == startMs)
+        .firstOrNull;
+    if (segment == null) return null;
+    final key = _reviewKey(episodeId, startMs);
+    final previous = _reviewSentences[key];
+    final updated = ReviewSentence(
+      episodeId: episodeId,
+      podcastId: episode.podcastId,
+      episodeTitle: episode.title,
+      startMs: startMs,
+      text: segment.text,
+      repeatCount: (previous?.repeatCount ?? 0) + 1,
+      lastRepeatedAt: DateTime.now(),
+    );
+    _reviewSentences[key] = updated;
+    await _save();
+    return updated;
+  }
+
+  @override
+  Future<void> removeReviewSentence(int episodeId, int startMs) async {
+    await _ensureLoaded();
+    if (_reviewSentences.remove(_reviewKey(episodeId, startMs)) != null) {
+      await _save();
+    }
+  }
+
+  String _reviewKey(int episodeId, int startMs) => '$episodeId:$startMs';
 
   @override
   Future<TranscriptDocument> translateTranscript(
@@ -617,6 +686,9 @@ class LocalPodcastRepository implements PodcastRepository {
         (key, value) => MapEntry(key.toString(), value),
       ),
       'listening_days': _listeningDays,
+      'review_sentences': _reviewSentences.values
+          .map((item) => item.toJson())
+          .toList(),
       'playback_session': _playbackSession?.toJson(),
     };
     final temporary = File('${file.path}.tmp');

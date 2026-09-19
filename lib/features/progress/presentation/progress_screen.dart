@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../core/widgets/glass_surface.dart';
 import '../application/listening_controller.dart';
 import '../domain/listening_stats.dart';
+import '../domain/review_sentence.dart';
 
 class ProgressScreen extends StatelessWidget {
-  const ProgressScreen({super.key, required this.controller});
+  const ProgressScreen({
+    super.key,
+    required this.controller,
+    this.onReviewSentence,
+  });
 
   final ListeningController controller;
+  final void Function(ReviewSentence sentence)? onReviewSentence;
 
   @override
   Widget build(BuildContext context) {
@@ -73,6 +79,56 @@ class ProgressScreen extends StatelessWidget {
                     ),
                     const SizedBox(height: 14),
                     _MonthHeatmap(month: DateTime.now(), daily: stats.daily),
+                    const SizedBox(height: 14),
+                    GlassSurface(
+                      borderRadius: BorderRadius.circular(26),
+                      blur: 24,
+                      tint: Colors.white.withValues(alpha: 0.62),
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '需要再听的句子',
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              '单句循环听完一次，就会自动记在这里。点一句回到原音频。',
+                              style: Theme.of(context).textTheme.bodySmall,
+                            ),
+                            if (controller.reviewSentences.isEmpty)
+                              const Padding(
+                                padding: EdgeInsets.symmetric(vertical: 18),
+                                child: Text('还没有反复听过的句子'),
+                              ),
+                            for (final sentence in controller.reviewSentences)
+                              ListTile(
+                                contentPadding: EdgeInsets.zero,
+                                title: Text(
+                                  sentence.text,
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                subtitle: Text(
+                                  '${sentence.episodeTitle} · 循环 ${sentence.repeatCount} 次',
+                                ),
+                                onTap: onReviewSentence == null
+                                    ? null
+                                    : () => onReviewSentence!(sentence),
+                                trailing: IconButton(
+                                  tooltip: '从复习列表移除',
+                                  icon: const Icon(Icons.check_rounded),
+                                  onPressed: () => controller
+                                      .removeReviewSentence(sentence),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                   ],
                 ),
               ),

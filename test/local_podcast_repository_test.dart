@@ -47,6 +47,8 @@ void main() {
         ],
       ),
     );
+    expect((await repository.recordSentenceRepeat(episode.id, 0))?.repeatCount, 1);
+    expect((await repository.recordSentenceRepeat(episode.id, 0))?.repeatCount, 2);
     await repository.recordListening(
       seconds: 30,
       listenedAt: DateTime(2026, 8, 28),
@@ -76,6 +78,10 @@ void main() {
       (await restored.importTranscript(episode.id)).segments.single.text,
       'Hello',
     );
+    final review = (await restored.listReviewSentences()).single;
+    expect(review.text, 'Hello');
+    expect(review.repeatCount, 2);
+    expect(review.episodeTitle, episode.title);
     expect(
       (await restored.listeningStats(DateTime(2026, 8, 28))).todaySeconds,
       30,
@@ -92,6 +98,8 @@ void main() {
       (await restored.importTranscript(episode.id)).audioKey,
       'episode-1-123.mp3',
     );
+    await restored.removeReviewSentence(episode.id, 0);
+    expect(await restored.listReviewSentences(), isEmpty);
   });
 }
 

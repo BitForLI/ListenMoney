@@ -45,7 +45,11 @@ void main() {
 
   test('loops an exact sentence range', () async {
     final engine = FakePlaybackEngine();
-    final controller = PlaybackController(engine);
+    final repeats = <(int, int)>[];
+    final controller = PlaybackController(
+      engine,
+      onSentenceRepeat: (episodeId, startMs) => repeats.add((episodeId, startMs)),
+    );
     addTearDown(controller.dispose);
     await controller.loadEpisode(episode);
     controller.updateTranscriptRanges(
@@ -68,6 +72,7 @@ void main() {
     expect(engine.loadCount, 1);
     expect(engine.pauseCount, 0);
     expect(engine.playing, isTrue);
+    expect(repeats, [(episode.id, 10000)]);
   });
 
   test('requires a timed range before sentence repetition', () async {

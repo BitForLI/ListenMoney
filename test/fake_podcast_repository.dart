@@ -1,6 +1,7 @@
 import 'package:listen/features/library/data/podcast_repository.dart';
 import 'package:listen/features/library/domain/podcast.dart';
 import 'package:listen/features/progress/domain/listening_stats.dart';
+import 'package:listen/features/progress/domain/review_sentence.dart';
 
 class FakePodcastRepository implements PodcastRepository {
   FakePodcastRepository({
@@ -19,6 +20,7 @@ class FakePodcastRepository implements PodcastRepository {
   final List<TranscriptDocument> savedTranscripts = [];
   int addCallCount = 0;
   int recordedSeconds = 0;
+  final List<ReviewSentence> reviewSentences = [];
 
   @override
   Future<Podcast> addSubscription(String feedUrl) async {
@@ -140,5 +142,34 @@ class FakePodcastRepository implements PodcastRepository {
   }) async {
     recordedSeconds += seconds;
     return listeningStats(listenedAt, days: days);
+  }
+
+  @override
+  Future<List<ReviewSentence>> listReviewSentences() async => [...reviewSentences];
+
+  @override
+  Future<ReviewSentence?> recordSentenceRepeat(int episodeId, int startMs) async {
+    final existing = reviewSentences.where(
+      (item) => item.episodeId == episodeId && item.startMs == startMs,
+    ).firstOrNull;
+    final updated = ReviewSentence(
+      episodeId: episodeId,
+      podcastId: 1,
+      episodeTitle: 'Test episode',
+      startMs: startMs,
+      text: 'Test sentence',
+      repeatCount: (existing?.repeatCount ?? 0) + 1,
+      lastRepeatedAt: DateTime.now(),
+    );
+    reviewSentences.remove(existing);
+    reviewSentences.add(updated);
+    return updated;
+  }
+
+  @override
+  Future<void> removeReviewSentence(int episodeId, int startMs) async {
+    reviewSentences.removeWhere(
+      (item) => item.episodeId == episodeId && item.startMs == startMs,
+    );
   }
 }

@@ -19,6 +19,7 @@ import 'features/player/data/mobile_transcript_translator.dart';
 import 'features/player/presentation/player_screen.dart';
 import 'features/progress/presentation/progress_screen.dart';
 import 'features/progress/application/listening_controller.dart';
+import 'features/progress/domain/review_sentence.dart';
 
 class ListenApp extends StatelessWidget {
   const ListenApp({super.key, this.podcastRepository, this.playbackController});
@@ -86,6 +87,11 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         widget.playbackController ??
         PlaybackController(
           JustAudioPlaybackEngine(),
+          onSentenceRepeat: (episodeId, startMs) {
+            unawaited(
+              _listeningController.recordSentenceRepeat(episodeId, startMs),
+            );
+          },
           audioSourceForEpisode: (episode) async {
             final repository = _podcastRepository;
             if (repository is! LocalPodcastRepository) return null;
@@ -115,11 +121,16 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
     );
     _playbackController.addListener(_schedulePlaybackSessionSave);
     _screens = [
-      ProgressScreen(controller: _listeningController),
+      ProgressScreen(
+        controller: _listeningController,
+        onReviewSentence: (sentence) =>
+            unawaited(_openReviewSentence(sentence)),
+      ),
       LibraryScreen(
         repository: _podcastRepository,
         onPodcastsChanged: (podcasts) {
           unawaited(_automaticTranscriptionRunner.run(podcasts));
+          unawaited(_listeningController.load());
         },
         onPlayEpisode: (podcast, episode) {
           unawaited(_playEpisode(podcast, episode));
@@ -238,6 +249,41 @@ class _AppShellState extends State<AppShell> with WidgetsBindingObserver {
         _playbackController.errorMessage == null &&
         !_playbackController.playing) {
       await _playbackController.togglePlayPause();
+    }
+  }
+
+  Future<void> _openReviewSentence(ReviewSentence sentence) async {
+    try {
+      final episodes = await _podcastRepository.listEpisodes(sentence.podcastId);
+      final episode = episodes
+          .where((item) => item.id == sentence.episodeId)
+          .firstOrNull;
+      if (episode == null) throw StateError('这段音频已经不在本地播客库中');
+      final podcasts = await _podcastRepository.listSubscriptions();
+      final podcast = podcasts
+          .where((item) => item.id == sentence.podcastId)
+          .firstOrNull;
+      if (_playbackController.episode?.id != episode.id) {
+        await _playbackController.loadEpisode(
+          episode,
+          fromPodcast: podcast?.title,
+          fromArtworkUrl: podcast?.artworkUrl,
+        );
+      }
+      if (_playbackController.errorMessage != null) {
+        throw StateError(_playbackController.errorMessage);
+      }
+      await _playbackController.seek(Duration(milliseconds: sentence.startMs));
+      if (!_playbackController.playing) {
+        await _playbackController.togglePlayPause();
+      }
+      if (mounted) unawaited(_openPlayerOverlay());
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('无法播放复习句子：$error')),
+        );
+      }
     }
   }
 

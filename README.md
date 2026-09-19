@@ -8,7 +8,7 @@ ListenMoney is a local-first podcast player for learners who want to study a few
 | --- | --- |
 | **Users** | English learners who study with podcasts |
 | **Problem** | Normal podcast apps make it difficult to find, replay, and understand one spoken sentence |
-| **Core experience** | Tap a transcript sentence, jump to its exact time, and repeat it until it becomes clear |
+| **Core experience** | Tap a transcript sentence, repeat it until it becomes clear, then return to it from a personal review list |
 | **Product choice** | A focused RSS library instead of an endless recommendation feed |
 | **Privacy model** | Playback, transcripts, translations, and history stay on the device during normal use |
 
@@ -18,6 +18,7 @@ The name is a small reminder that language learning has a practical return: the 
 
 - Subscribe to up to ten RSS feeds and search Apple Podcasts.
 - Repeat a sentence, paragraph, or whole episode without switching audio sources.
+- Automatically collect repeated sentences in a local review list, ordered by repeat count; tap to replay from the original timestamp or remove a sentence when it is learned.
 - Generate English transcripts on supported Android devices with NVIDIA Parakeet.
 - Translate transcripts on-device with Google ML Kit on Android and iOS, after the required language models are downloaded.
 - Import Podcasting 2.0 transcripts in VTT, SRT, or JSON format.
@@ -50,6 +51,10 @@ and [TXT export](lib/features/player/data/subtitle_exporter.dart) are separate
 paths. Imported transcripts are readable, but the current synchronized-player
 path requires a transcript bound to its retained recording. These are
 implementation and fixture-test claims, not measured speech-recognition accuracy.
+
+The [review list](lib/features/progress/domain/review_sentence.dart) records a
+sentence only when a timed sentence loop reaches its end. Counts and timestamps
+are stored locally; removing a subscription also removes its review entries.
 
 ## Run
 

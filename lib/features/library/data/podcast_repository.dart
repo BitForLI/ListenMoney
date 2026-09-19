@@ -1,4 +1,5 @@
 import '../../progress/domain/listening_stats.dart';
+import '../../progress/domain/review_sentence.dart';
 import '../domain/podcast.dart';
 
 abstract class PodcastRepository {
@@ -35,6 +36,12 @@ abstract class PodcastRepository {
     required DateTime listenedAt,
     int days = 7,
   });
+
+  Future<List<ReviewSentence>> listReviewSentences();
+
+  Future<ReviewSentence?> recordSentenceRepeat(int episodeId, int startMs);
+
+  Future<void> removeReviewSentence(int episodeId, int startMs);
 }
 
 class PodcastRepositoryException implements Exception {

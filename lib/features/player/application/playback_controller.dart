@@ -24,12 +24,17 @@ class PlaybackUnavailableException implements Exception {
 }
 
 class PlaybackController extends ChangeNotifier {
-  PlaybackController(this._engine, {this.audioSourceForEpisode}) {
+  PlaybackController(
+    this._engine, {
+    this.audioSourceForEpisode,
+    this.onSentenceRepeat,
+  }) {
     _engine.addListener(_engineChanged);
   }
 
   final PlaybackEngine _engine;
   final Future<String?> Function(Episode episode)? audioSourceForEpisode;
+  final void Function(int episodeId, int startMs)? onSentenceRepeat;
   Episode? episode;
   String? podcastTitle;
   String? artworkUrl;
@@ -71,6 +76,9 @@ class PlaybackController extends ChangeNotifier {
     final range = _repeatRange;
     if (isLoading || isSeeking || !playing || range == null) return false;
     if (position < range.end) return false;
+    if (repeatMode == PlaybackRepeatMode.sentence && episode != null) {
+      onSentenceRepeat?.call(episode!.id, range.start.inMilliseconds);
+    }
     unawaited(_seek(range.start, reanchor: false));
     return true;
   }

@@ -6,6 +6,7 @@ import '../../library/data/podcast_repository.dart';
 import '../../player/application/playback_controller.dart';
 import '../../player/application/playback_engine.dart';
 import '../domain/listening_stats.dart';
+import '../domain/review_sentence.dart';
 
 class ListeningController extends ChangeNotifier {
   ListeningController(
@@ -28,6 +29,7 @@ class ListeningController extends ChangeNotifier {
   final int _flushEverySeconds;
   Timer? _timer;
   ListeningStats stats = ListeningStats.empty;
+  List<ReviewSentence> reviewSentences = const [];
   bool isLoading = false;
   String? errorMessage;
   int _pendingSeconds = 0;
@@ -49,6 +51,7 @@ class ListeningController extends ChangeNotifier {
     try {
       final now = DateTime.now();
       stats = await _repository.listeningStats(now, days: now.day);
+      reviewSentences = await _repository.listReviewSentences();
       errorMessage = null;
     } catch (error) {
       errorMessage = error.toString();
@@ -56,6 +59,27 @@ class ListeningController extends ChangeNotifier {
       isLoading = false;
       if (!_disposed) notifyListeners();
     }
+  }
+
+  Future<void> recordSentenceRepeat(int episodeId, int startMs) async {
+    try {
+      final recorded = await _repository.recordSentenceRepeat(
+        episodeId,
+        startMs,
+      );
+      if (recorded == null || _disposed) return;
+      reviewSentences = await _repository.listReviewSentences();
+      if (!_disposed) notifyListeners();
+    } catch (error) {
+      errorMessage = error.toString();
+      if (!_disposed) notifyListeners();
+    }
+  }
+
+  Future<void> removeReviewSentence(ReviewSentence sentence) async {
+    await _repository.removeReviewSentence(sentence.episodeId, sentence.startMs);
+    reviewSentences = await _repository.listReviewSentences();
+    if (!_disposed) notifyListeners();
   }
 
   @visibleForTesting
