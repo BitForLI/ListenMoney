@@ -69,7 +69,7 @@ jobs:
           test -n "$apksigner"
           signature_info="$("$apksigner" verify --print-certs build/app/outputs/flutter-apk/app-release.apk)"
           printf '%s\n' "$signature_info"
-          digest="$(printf '%s\n' "$signature_info" | awk -F ': ' '/Signer #1 certificate SHA-256 digest/ {print $2}' | tr '[:upper:]' '[:lower:]')"
+          digest="$(printf '%s\n' "$signature_info" | awk -F ': ' '/certificate SHA-256 digest/ {print $2}' | tr '[:upper:]' '[:lower:]' | sort -u)"
           test "$digest" = '20214d5296f4795b06db76bba6aae4a71108ee461f722e0cf569613ae6811072'
 
       - name: Name the downloadable APK
